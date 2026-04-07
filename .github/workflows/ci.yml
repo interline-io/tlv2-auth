@@ -40,11 +40,3 @@ jobs:
 
       - name: Test
         run: pnpm test
-
-      - name: Publish SHA pre-release
-        run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          VERSION="0.0.0-sha.${SHORT_SHA}"
-          pnpm version $VERSION --no-git-tag-version && pnpm publish --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
