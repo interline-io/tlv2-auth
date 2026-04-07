@@ -91,6 +91,21 @@ describe('buildProxyTarget', () => {
     expect(buildProxyTarget('https://api.example.com/v2', '/query?limit=10'))
       .toBe('https://api.example.com/v2/query?limit=10')
   })
+
+  it('throws on path traversal with ..', () => {
+    expect(() => buildProxyTarget('https://api.example.com/api/v2', '/../../admin/users'))
+      .toThrow('[tlv2-proxy] Path traversal detected')
+  })
+
+  it('throws on encoded path traversal', () => {
+    expect(() => buildProxyTarget('https://api.example.com/api/v2', '/%2e%2e/%2e%2e/admin'))
+      .toThrow('[tlv2-proxy] Path traversal detected')
+  })
+
+  it('allows normal subpaths that stay within proxyBase', () => {
+    expect(buildProxyTarget('https://api.example.com/api/v2', '/feeds/../feeds/123'))
+      .toBe('https://api.example.com/api/v2/feeds/123')
+  })
 })
 
 describe('buildProxyHeaders', () => {

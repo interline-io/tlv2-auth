@@ -22,11 +22,16 @@ export function resolveProxyBase (
 }
 
 // Build the target URL from proxyBase and the stripped request path.
+// Throws if the resolved path escapes the proxyBase pathname (path traversal).
 export function buildProxyTarget (proxyBase: string, requestPath: string): string {
   const proxyBaseUrl = new URL(proxyBase)
   const proxyBasePathname = proxyBaseUrl.pathname === '/' ? '' : proxyBaseUrl.pathname
   const newPath = proxyBasePathname + requestPath
-  return new URL(newPath, proxyBaseUrl.toString()).toString()
+  const resolved = new URL(newPath, proxyBaseUrl.toString())
+  if (proxyBasePathname && !resolved.pathname.startsWith(proxyBasePathname)) {
+    throw new Error(`[tlv2-proxy] Path traversal detected: ${requestPath}`)
+  }
+  return resolved.toString()
 }
 
 // Build auth headers for the proxied request.
