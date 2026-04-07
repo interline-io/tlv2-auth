@@ -1,7 +1,6 @@
 // @ts-check
 import { createConfigForNuxt } from '@nuxt/eslint-config/flat'
 
-// Inlined from @interline-io/tlv2-ui/lib/config (removing tlv2-ui dependency)
 const ignoreFiles = {
   ignores: [
     '.nuxt/**',
