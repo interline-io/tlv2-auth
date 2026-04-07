@@ -33,6 +33,7 @@
     "release": "pnpm dev:prepare && pnpm build && changeset publish"
   },
   "peerDependencies": {
+    "h3": "^1.0.0",
     "nuxt": "^4.0.0",
     "vue": "^3.0.0"
   },
