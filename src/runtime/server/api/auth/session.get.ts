@@ -19,7 +19,20 @@ async function fetchMeData (proxyBase: string, headers: Record<string, string>) 
   })
   if (!response || !response.ok) {
     if (response) {
-      console.warn('[tlv2-auth] /api/auth/session: GraphQL me query returned', response.status)
+      let jwtInfo: string | Record<string, unknown> = '(none)'
+      const token = headers.Authorization?.replace('Bearer ', '')
+      if (token) {
+        try {
+          const payload = JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString())
+          jwtInfo = { iss: payload.iss, aud: payload.aud, sub: payload.sub, exp: payload.exp }
+        } catch {
+          jwtInfo = '(invalid JWT)'
+        }
+      }
+      console.warn(
+        `[tlv2-auth] /api/auth/session: GraphQL me query returned ${response.status} — check iss/aud`,
+        { url: `${proxyBase}/query`, hasApikey: !!headers.apikey, jwt: jwtInfo }
+      )
     }
     return null
   }
