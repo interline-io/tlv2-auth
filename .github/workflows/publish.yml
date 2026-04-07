@@ -7,6 +7,37 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
+  # Publish a SHA pre-release on every push to main
+  sha-prerelease:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: '@interline-io'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish SHA pre-release
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          VERSION="0.0.0-sha.${SHORT_SHA}"
+          pnpm version $VERSION --no-git-tag-version && pnpm publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   # Open a "Version Packages" PR when changesets are present,
   # or publish on merge of that PR.
   release:
