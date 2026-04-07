@@ -1,15 +1,13 @@
 # tlv2-auth
 
-pnpm monorepo publishing a single Nuxt 4 module to GitHub Packages under the `@interline-io` scope:
-
-- `packages/tlv2-auth` → `@interline-io/tlv2-auth`
+Nuxt 4 module published to GitHub Packages as `@interline-io/tlv2-auth`. The module source lives at the repo root (`src/`), with a `playground/` workspace for local development.
 
 ## Commands
 
 ```bash
 pnpm install          # Install (requires NODE_AUTH_TOKEN for GitHub Packages)
 pnpm dev              # Start playground dev server (http://localhost:3000)
-pnpm build            # Build the package
+pnpm build            # Build the module
 pnpm test             # Run all tests (vitest)
 pnpm lint             # ESLint
 ```
@@ -36,9 +34,9 @@ Every push to `main` also publishes a SHA pre-release (`0.0.0-sha.<sha>`) for in
 
 ## Architecture
 
-- `playground/` — dev environment for testing the auth module
-- `packages/tlv2-auth/src/module.ts` — Nuxt module entry point
-- `packages/tlv2-auth/src/runtime/` — composables, plugins, server routes, and utilities
+- `src/module.ts` — Nuxt module entry point
+- `src/runtime/` — composables, plugins, server routes, and utilities
+- `playground/` — dev environment for testing the auth module (pnpm workspace package)
 - `.changeset/config.json` — changesets config (`access: "public"` for GitHub Packages)
 
 ## Package manager

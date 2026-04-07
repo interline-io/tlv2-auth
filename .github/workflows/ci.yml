@@ -27,24 +27,24 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Prepare packages (stub build)
-        run: pnpm -r --filter './packages/*' dev:prepare
+      - name: Prepare (stub build)
+        run: pnpm dev:prepare
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Lint
         run: pnpm lint
 
-      - name: Build packages
-        run: pnpm -r --filter './packages/*' build
+      - name: Build
+        run: pnpm build
 
       - name: Test
-        run: pnpm -r --filter './packages/*' test
+        run: pnpm test
 
       - name: Publish SHA pre-release
         run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
           VERSION="0.0.0-sha.${SHORT_SHA}"
-          cd packages/tlv2-auth && pnpm version $VERSION --no-git-tag-version && pnpm publish --no-git-checks
+          pnpm version $VERSION --no-git-tag-version && pnpm publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

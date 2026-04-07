@@ -1,5 +1,4 @@
 node_modules
-**/src/runtime/shared-utils
 .nuxt
 .output
 dist

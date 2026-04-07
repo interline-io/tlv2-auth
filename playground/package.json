@@ -9,9 +9,6 @@
     "lint": "eslint .",
     "check": "pnpm lint --fix && nuxi typecheck"
   },
-  "dependencies": {
-    "@interline-io/tlv2-auth": "workspace:*"
-  },
   "devDependencies": {
     "@nuxt/devtools": "3.0.1",
     "nuxt": "^4.2.0",

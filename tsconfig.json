@@ -1,18 +1,11 @@
 {
-  "compilerOptions": {
-    "strict": true,
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "target": "ESNext",
-    "lib": ["ESNext", "DOM"],
-    "skipLibCheck": true,
-    "resolveJsonModule": true
+  "extends": "./.nuxt/tsconfig.json",
+  "vueCompilerOptions": {
+    "strictTemplates": true
   },
   "exclude": [
+    "dist",
     "node_modules",
-    "packages/*/dist",
-    "packages/*/node_modules",
-    "playground/.nuxt",
-    "playground/node_modules"
+    "playground"
   ]
 }

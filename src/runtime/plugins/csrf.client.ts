@@ -1,3 +1,4 @@
+import type { Plugin } from '#app'
 import { defineNuxtPlugin, useCsrf } from '#imports'
 
 function isSameOrigin (url: string | URL | Request): boolean {
@@ -19,7 +20,7 @@ function isSameOrigin (url: string | URL | Request): boolean {
 // so that Apollo and other non-ofetch callers get CSRF headers on same-origin
 // requests. Custom headers on cross-origin requests trigger CORS preflights,
 // which breaks external resources like map tiles.
-export default defineNuxtPlugin(() => {
+const plugin: Plugin = defineNuxtPlugin(() => {
   const originalFetch = globalThis.fetch
   globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const { csrf, headerName } = useCsrf()
@@ -32,3 +33,4 @@ export default defineNuxtPlugin(() => {
     return originalFetch(input, init)
   }
 })
+export default plugin

@@ -1,3 +1,4 @@
+import type { Plugin } from '#app'
 import { defineNuxtPlugin, useRuntimeConfig } from '#imports'
 import { useAuth0Session } from '../server/useSession'
 
@@ -9,7 +10,7 @@ import { useAuth0Session } from '../server/useSession'
 //
 // Only injects headers on requests to configured proxyBase origins to avoid
 // leaking credentials to third-party services.
-export default defineNuxtPlugin((nuxtApp) => {
+const plugin: Plugin = defineNuxtPlugin((nuxtApp) => {
   const config = useRuntimeConfig()
   const graphqlApikey = config.tlv2?.graphqlApikey || ''
 
@@ -86,3 +87,4 @@ export default defineNuxtPlugin((nuxtApp) => {
     return originalFetch(input, init)
   }
 })
+export default plugin

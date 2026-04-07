@@ -1,9 +1,10 @@
+import type { Plugin } from '#app'
 import { defineNuxtPlugin, addRouteMiddleware, useState, useRuntimeConfig } from '#imports'
 import { useLogin } from '../composables/useLogin'
 
 const RECHECK_INTERVAL = 600_000
 
-export default defineNuxtPlugin(() => {
+const plugin: Plugin = defineNuxtPlugin(() => {
   addRouteMiddleware('auth-enrich', async () => {
     const auth0User = useState<Record<string, any> | undefined>('auth0_user')
     const lastChecked = useState<number>('tlv2_auth_last_checked', () => 0)
@@ -54,3 +55,4 @@ export default defineNuxtPlugin(() => {
     global: true
   })
 })
+export default plugin

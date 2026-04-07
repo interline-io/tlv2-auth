@@ -51,8 +51,8 @@ export default createConfigForNuxt({
   },
   dirs: {
     src: [
+      '.',
       './playground',
-      './packages/tlv2-auth',
     ],
   },
 })

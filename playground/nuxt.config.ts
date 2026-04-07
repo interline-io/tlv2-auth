@@ -1,6 +1,6 @@
 export default defineNuxtConfig({
   modules: [
-    '@interline-io/tlv2-auth',
+    '../src/module',
     '@nuxt/devtools',
   ],
 

@@ -1,31 +1,71 @@
 {
-  "name": "tlv2-auth",
-  "private": true,
+  "name": "@interline-io/tlv2-auth",
+  "version": "0.1.0",
+  "repository": "https://github.com/interline-io/tlv2-auth",
+  "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
   "packageManager": "pnpm@10.21.0",
+  "main": "./dist/module.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/types.d.mts",
+      "import": "./dist/module.mjs"
+    },
+    "./composables": {
+      "types": "./dist/runtime/composables/index.d.ts",
+      "import": "./dist/runtime/composables/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "prepack": "nuxt-module-build prepare && nuxt-module-build build",
+    "build": "nuxt-module-build build",
     "dev": "pnpm --filter playground dev",
-    "build": "pnpm -r --filter './packages/*' build",
-    "test": "pnpm -r --filter './packages/*' test",
+    "dev:prepare": "nuxt-module-build build --stub && nuxt-module-build prepare",
     "lint": "eslint .",
-    "prepare": "pnpm -r --filter './packages/*' dev:prepare",
+    "check": "pnpm lint --fix && pnpm nuxt typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "pnpm build && changeset publish"
+  },
+  "peerDependencies": {
+    "nuxt": "^4.0.0",
+    "vue": "^3.0.0"
+  },
+  "dependencies": {
+    "@auth0/auth0-nuxt": "^1.0.1",
+    "defu": "^6.1.4",
+    "nuxt-csurf": "^1.6.5"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.6.0",
     "@changesets/cli": "^2.30.0",
     "@nuxt/eslint": "1.10.0",
     "@nuxt/eslint-config": "1.10.0",
+    "@nuxt/kit": "^4.2.0",
+    "@nuxt/module-builder": "1.0.2",
+    "@nuxt/schema": "^4.2.0",
     "@stylistic/eslint-plugin": "5.5.0",
     "eslint": "9.39.1",
     "eslint-plugin-vue": "10.5.1",
     "eslint-typegen": "2.3.0",
+    "nuxi": "3.30.0",
+    "nuxt": "^4.2.0",
     "tsx": "4.20.6",
     "typescript": "5.9.3",
     "typescript-eslint": "8.46.3",
-    "vue-eslint-parser": "10.2.0"
+    "vitest": "3.2.4",
+    "vue": "^3.5.0",
+    "vue-eslint-parser": "10.2.0",
+    "vue-tsc": "3.2.6"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
   },
   "pnpm": {
     "minimumReleaseAge": 10080,
