@@ -30,7 +30,7 @@
     "test:watch": "vitest watch",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "pnpm build && changeset publish"
+    "release": "pnpm dev:prepare && pnpm build && changeset publish"
   },
   "peerDependencies": {
     "nuxt": "^4.0.0",
