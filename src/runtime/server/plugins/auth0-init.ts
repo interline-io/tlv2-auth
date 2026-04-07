@@ -19,6 +19,8 @@ export default defineNitroPlugin((nitroApp) => {
       return
     }
     let { appBaseUrl } = config.auth0
+    // Trusts x-forwarded-proto and Host headers — only safe behind a
+    // trusted edge proxy (Cloudflare, Vercel, etc.)
     if (config.tlv2?.autoAppBaseUrl) {
       const host = getRequestHeader(event, 'host')
       const proto = getRequestHeader(event, 'x-forwarded-proto') || 'https'
