@@ -54,6 +54,31 @@ export default defineNuxtConfig({
 
 Without Auth0 env vars, the module works without authentication — useful for local development.
 
+## Module options
+
+Options can be passed via the module array syntax:
+
+```ts
+modules: [['@interline-io/tlv2-auth', { autoAppBaseUrl: true }]]
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `proxyBase` | `string \| Record<string, string>` | — | Backend URL(s) for the API proxy |
+| `requireLogin` | `boolean` | `false` | Redirect unauthenticated users to Auth0 login |
+| `loginGate` | `boolean` | `false` | Show login UI gate |
+| `autoAppBaseUrl` | `boolean` | `false` | Derive auth0 `appBaseUrl` from request `Host` header (see below) |
+
+### `autoAppBaseUrl`
+
+When enabled, the module derives `appBaseUrl` from the request's `Host` and `x-forwarded-proto` headers instead of using the static `NUXT_AUTH0_APP_BASE_URL` value. This is useful for branch/preview deploys where the URL isn't known at build time (e.g., Cloudflare Pages, Vercel preview deployments).
+
+**Caveat:** This trusts the `Host` and `x-forwarded-proto` headers. Only enable on platforms where these are set by a trusted edge proxy (Cloudflare, Vercel, Netlify, etc.). Do not enable when the application is directly exposed to the internet without a trusted reverse proxy.
+
+## Cloudflare Workers
+
+The module includes a synchronous Nitro plugin that works around a race condition in `@auth0/auth0-nuxt`, where its async server plugin doesn't complete before the first request on Cloudflare Workers. This runs automatically when auth0 is enabled and no-ops on platforms where the async plugin completes normally (e.g., Node.js).
+
 ## API proxy
 
 The proxy at `/api/proxy/{backendName}/...` forwards requests to the backend URL configured in `runtimeConfig.tlv2.proxyBase.{backendName}`.

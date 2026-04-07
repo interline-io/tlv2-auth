@@ -1,10 +1,15 @@
-import { defineNuxtModule, addPlugin, createResolver, addImportsDir, addServerHandler, installModule } from '@nuxt/kit'
+import { defineNuxtModule, addPlugin, addServerPlugin, createResolver, addImportsDir, addServerHandler, installModule } from '@nuxt/kit'
 import { defu } from 'defu'
 
 export interface ModuleOptions {
   proxyBase?: string | Record<string, string>
   requireLogin?: boolean
   loginGate?: boolean
+  /** Derive auth0 appBaseUrl from the request Host header instead of using
+   *  the static NUXT_AUTH0_APP_BASE_URL value. Useful for branch/preview
+   *  deploys where the URL isn't known at build time (e.g. Cloudflare Pages,
+   *  Vercel preview deployments). */
+  autoAppBaseUrl?: boolean
 }
 
 export default defineNuxtModule<ModuleOptions>({
@@ -18,6 +23,7 @@ export default defineNuxtModule<ModuleOptions>({
   defaults: {
     requireLogin: false,
     loginGate: false,
+    autoAppBaseUrl: false,
   },
   async setup (options, nuxt) {
     const resolver = createResolver(import.meta.url)
@@ -40,6 +46,14 @@ export default defineNuxtModule<ModuleOptions>({
         nuxt.options.runtimeConfig.auth0.sessionSecret = secret
         console.warn('[tlv2-auth] No NUXT_AUTH0_SESSION_SECRET provided — using ephemeral secret (sessions won\'t survive restarts)')
       }
+      // Synchronous Nitro plugin that ensures auth0ClientOptions is set on
+      // each request. No-ops when auth0-nuxt's async plugin already ran.
+      // Required for Cloudflare Workers compatibility where async Nitro
+      // plugins don't complete before the first request.
+      nuxt.options.runtimeConfig.tlv2 = defu(nuxt.options.runtimeConfig.tlv2 as any, {
+        autoAppBaseUrl: options.autoAppBaseUrl,
+      })
+      addServerPlugin(resolveRuntimeModule('server/plugins/auth0-init'))
       await installModule('@auth0/auth0-nuxt', {})
       addServerHandler({
         middleware: true,
