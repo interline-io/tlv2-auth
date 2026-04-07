@@ -1,0 +1,7 @@
+{
+  "extends": "./.nuxt/tsconfig.json",
+  "vueCompilerOptions": {
+    "strictTemplates": true
+  },
+  "exclude": ["dist", "node_modules"]
+}

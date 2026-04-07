@@ -1,0 +1,22 @@
+{
+  "name": "playground",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxi dev",
+    "build": "nuxi build",
+    "prepare": "nuxi prepare",
+    "lint": "eslint .",
+    "check": "pnpm lint --fix && nuxi typecheck"
+  },
+  "dependencies": {
+    "@interline-io/tlv2-auth": "workspace:*"
+  },
+  "devDependencies": {
+    "@nuxt/devtools": "3.0.1",
+    "nuxt": "^4.2.0",
+    "typescript": "5.9.3",
+    "vue": "^3.5.0",
+    "vue-tsc": "3.2.6"
+  }
+}

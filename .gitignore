@@ -1,0 +1,15 @@
+node_modules
+**/src/runtime/shared-utils
+.nuxt
+.output
+dist
+coverage
+*.log
+
+# pnpm
+.pnpm-store
+
+# env
+.env
+.env.*
+!.env.example
