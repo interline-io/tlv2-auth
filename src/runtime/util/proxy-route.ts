@@ -1,11 +1,21 @@
 // Pure functions for proxy route parsing — no framework dependencies.
 
+const prefixReCache = new Map<string, RegExp>()
+function getPrefixRe (prefix: string): RegExp {
+  let re = prefixReCache.get(prefix)
+  if (!re) {
+    const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    re = new RegExp(`^${escaped}/([^/]+)`)
+    prefixReCache.set(prefix, re)
+  }
+  return re
+}
+
 // Extract backend name from proxy path: /{prefix}/{backend}/...
 // The prefix defaults to '/proxy' but is configurable via module options.
 // Returns null if the path doesn't match the expected pattern.
 export function parseProxyRoute (path: string, prefix: string = '/proxy'): { backendName: string, strippedPath: string } | null {
-  const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const re = new RegExp(`^${escapedPrefix}/([^/]+)`)
+  const re = getPrefixRe(prefix)
   const match = path.match(re)
   if (!match) {
     return null

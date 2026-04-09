@@ -16,6 +16,14 @@ export interface ModuleOptions {
   autoAppBaseUrl?: boolean
 }
 
+function normalizePrefix (value: string | undefined, fallback: string): string {
+  const raw = (value || fallback).replace(/\/+$/, '')
+  if (!raw.startsWith('/')) {
+    throw new Error(`[tlv2-auth] Route prefix must start with "/", got: "${raw}"`)
+  }
+  return raw
+}
+
 export default defineNuxtModule<ModuleOptions>({
   meta: {
     name: 'tlv2-auth',
@@ -34,6 +42,9 @@ export default defineNuxtModule<ModuleOptions>({
   async setup (options, nuxt) {
     const resolver = createResolver(import.meta.url)
     const resolveRuntimeModule = (path: string) => resolver.resolve('./runtime', path)
+
+    const authPrefix = normalizePrefix(options.authPrefix, '/auth')
+    const proxyPrefix = normalizePrefix(options.proxyPrefix, '/proxy')
 
     // CSRF protection (required for all requests, including unauthenticated)
     await installModule('nuxt-csurf', { addCsrfTokenToEventCtx: true })
@@ -60,7 +71,6 @@ export default defineNuxtModule<ModuleOptions>({
         autoAppBaseUrl: options.autoAppBaseUrl,
       })
       addServerPlugin(resolveRuntimeModule('server/plugins/auth0-init'))
-      const authPrefix = options.authPrefix!
       await installModule('@auth0/auth0-nuxt', {
         routes: {
           login: `${authPrefix}/login`,
@@ -92,8 +102,8 @@ export default defineNuxtModule<ModuleOptions>({
         tlv2: {
           loginGate: options.loginGate,
           requireLogin: options.requireLogin,
-          authPrefix: options.authPrefix,
-          proxyPrefix: options.proxyPrefix,
+          authPrefix,
+          proxyPrefix,
         }
       }
     ))
@@ -107,14 +117,14 @@ export default defineNuxtModule<ModuleOptions>({
 
     // Session endpoint for ssr:false apps to fetch user claims client-side
     addServerHandler({
-      route: `${options.authPrefix}/session`,
+      route: `${authPrefix}/session`,
       method: 'get',
       handler: resolveRuntimeModule('server/api/auth/session.get')
     })
 
     // Proxy — routes /{proxyPrefix}/{backend}/... to the configured proxyBase for that backend
     addServerHandler({
-      route: `${options.proxyPrefix}/**`,
+      route: `${proxyPrefix}/**`,
       handler: resolveRuntimeModule('server/api/proxy')
     })
   }
