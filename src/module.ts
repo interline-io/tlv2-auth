@@ -5,6 +5,10 @@ export interface ModuleOptions {
   proxyBase?: string | Record<string, string>
   requireLogin?: boolean
   loginGate?: boolean
+  /** URL prefix for auth routes (login, logout, session). Default: '/auth' */
+  authPrefix?: string
+  /** URL prefix for the proxy route. Default: '/proxy' */
+  proxyPrefix?: string
   /** Derive auth0 appBaseUrl from the request Host header instead of using
    *  the static NUXT_AUTH0_APP_BASE_URL value. Useful for branch/preview
    *  deploys where the URL isn't known at build time (e.g. Cloudflare Pages,
@@ -23,6 +27,8 @@ export default defineNuxtModule<ModuleOptions>({
   defaults: {
     requireLogin: false,
     loginGate: false,
+    authPrefix: '/auth',
+    proxyPrefix: '/proxy',
     autoAppBaseUrl: false,
   },
   async setup (options, nuxt) {
@@ -78,6 +84,8 @@ export default defineNuxtModule<ModuleOptions>({
         tlv2: {
           loginGate: options.loginGate,
           requireLogin: options.requireLogin,
+          authPrefix: options.authPrefix,
+          proxyPrefix: options.proxyPrefix,
         }
       }
     ))
@@ -91,14 +99,14 @@ export default defineNuxtModule<ModuleOptions>({
 
     // Session endpoint for ssr:false apps to fetch user claims client-side
     addServerHandler({
-      route: '/api/auth/session',
+      route: `${options.authPrefix}/session`,
       method: 'get',
       handler: resolveRuntimeModule('server/api/auth/session.get')
     })
 
-    // Proxy — routes /api/proxy/{backend}/... to the configured proxyBase for that backend
+    // Proxy — routes /{proxyPrefix}/{backend}/... to the configured proxyBase for that backend
     addServerHandler({
-      route: '/api/proxy/**',
+      route: `${options.proxyPrefix}/**`,
       handler: resolveRuntimeModule('server/api/proxy')
     })
   }

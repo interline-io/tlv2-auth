@@ -11,7 +11,8 @@ export const useApiEndpoint = (path?: string, clientName?: string) => {
   }
   if (import.meta.client) {
     // Client-side: route through the per-backend proxy
-    base = window.location.origin + '/api/proxy/' + clientName
+    const proxyPrefix = config.public.tlv2?.proxyPrefix || '/proxy'
+    base = window.location.origin + proxyPrefix + '/' + clientName
   }
   return base + (path || '')
 }

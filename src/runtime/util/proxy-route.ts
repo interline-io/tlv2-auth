@@ -1,15 +1,17 @@
 // Pure functions for proxy route parsing — no framework dependencies.
 
-// Extract backend name from proxy path: /api/proxy/{backend}/...
+// Extract backend name from proxy path: /{prefix}/{backend}/...
+// The prefix defaults to '/proxy' but is configurable via module options.
 // Returns null if the path doesn't match the expected pattern.
-const PROXY_PREFIX_RE = /^\/api\/proxy\/([^/]+)/
-export function parseProxyRoute (path: string): { backendName: string, strippedPath: string } | null {
-  const match = path.match(PROXY_PREFIX_RE)
+export function parseProxyRoute (path: string, prefix: string = '/proxy'): { backendName: string, strippedPath: string } | null {
+  const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`^${escapedPrefix}/([^/]+)`)
+  const match = path.match(re)
   if (!match) {
     return null
   }
   const backendName = match[1]!
-  const strippedPath = path.replace(PROXY_PREFIX_RE, '') || '/'
+  const strippedPath = path.replace(re, '') || '/'
   return { backendName, strippedPath }
 }
 

@@ -22,7 +22,9 @@ const plugin: Plugin = defineNuxtPlugin(() => {
     const needsFetch = !auth0User.value || !auth0User.value.tlv2_roles
     if (needsFetch) {
       try {
-        const session = await $fetch('/api/auth/session')
+        const config = useRuntimeConfig()
+        const authPrefix = config.public.tlv2?.authPrefix || '/auth'
+        const session = await $fetch(`${authPrefix}/session`)
         auth0User.value = session || undefined
       } catch (e) {
         console.warn('[tlv2-auth] Failed to fetch session:', e)

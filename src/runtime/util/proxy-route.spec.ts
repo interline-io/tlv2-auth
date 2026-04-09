@@ -3,32 +3,32 @@ import { parseProxyRoute, resolveProxyBase, buildProxyTarget, buildProxyHeaders 
 
 describe('parseProxyRoute', () => {
   it('extracts backend name and strips prefix', () => {
-    expect(parseProxyRoute('/api/proxy/default/query')).toEqual({
+    expect(parseProxyRoute('/proxy/default/query')).toEqual({
       backendName: 'default',
       strippedPath: '/query'
     })
   })
 
   it('handles stationEditor backend', () => {
-    expect(parseProxyRoute('/api/proxy/stationEditor/query')).toEqual({
+    expect(parseProxyRoute('/proxy/stationEditor/query')).toEqual({
       backendName: 'stationEditor',
       strippedPath: '/query'
     })
   })
 
   it('handles nested paths', () => {
-    expect(parseProxyRoute('/api/proxy/feedManagement/admin/feeds/123')).toEqual({
+    expect(parseProxyRoute('/proxy/feedManagement/admin/feeds/123')).toEqual({
       backendName: 'feedManagement',
       strippedPath: '/admin/feeds/123'
     })
   })
 
   it('returns null for path without backend segment', () => {
-    expect(parseProxyRoute('/api/proxy/')).toBeNull()
+    expect(parseProxyRoute('/proxy/')).toBeNull()
   })
 
   it('defaults to "/" when no trailing path', () => {
-    expect(parseProxyRoute('/api/proxy/default')).toEqual({
+    expect(parseProxyRoute('/proxy/default')).toEqual({
       backendName: 'default',
       strippedPath: '/'
     })
@@ -36,6 +36,13 @@ describe('parseProxyRoute', () => {
 
   it('returns null for empty path', () => {
     expect(parseProxyRoute('')).toBeNull()
+  })
+
+  it('supports custom prefix', () => {
+    expect(parseProxyRoute('/api/proxy/default/query', '/api/proxy')).toEqual({
+      backendName: 'default',
+      strippedPath: '/query'
+    })
   })
 })
 
