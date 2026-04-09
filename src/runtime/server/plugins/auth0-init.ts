@@ -1,4 +1,5 @@
-import { defineNitroPlugin, useRuntimeConfig, getRequestHeader } from '#imports'
+import { defineNitroPlugin, useRuntimeConfig } from 'nitropack/runtime'
+import { getRequestHeader } from 'h3'
 
 // Synchronous Nitro plugin that ensures auth0ClientOptions is populated on
 // each request. No-ops when auth0-nuxt's own async plugin already ran.

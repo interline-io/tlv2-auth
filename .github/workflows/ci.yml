@@ -35,6 +35,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Typecheck
+        run: pnpm nuxt typecheck
+
       - name: Build
         run: pnpm build
 

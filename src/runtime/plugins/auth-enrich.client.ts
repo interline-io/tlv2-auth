@@ -1,6 +1,7 @@
 import type { Plugin } from '#app'
 import { defineNuxtPlugin, addRouteMiddleware, useState, useRuntimeConfig } from '#imports'
 import { useLogin } from '../composables/useLogin'
+import { DEFAULT_AUTH_PREFIX } from '../util/defaults'
 
 const RECHECK_INTERVAL = 600_000
 
@@ -22,7 +23,9 @@ const plugin: Plugin = defineNuxtPlugin(() => {
     const needsFetch = !auth0User.value || !auth0User.value.tlv2_roles
     if (needsFetch) {
       try {
-        const session = await $fetch('/api/auth/session')
+        const config = useRuntimeConfig()
+        const authPrefix = config.public.tlv2?.authPrefix || DEFAULT_AUTH_PREFIX
+        const session = await $fetch(`${authPrefix}/session`)
         auth0User.value = session || undefined
       } catch (e) {
         console.warn('[tlv2-auth] Failed to fetch session:', e)

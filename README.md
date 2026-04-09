@@ -6,7 +6,7 @@ Nuxt 4 module providing authentication, CSRF protection, and API proxying for Tr
 
 - Server-side Auth0 sessions (conditionally installed only when `clientId` is configured)
 - CSRF protection via `nuxt-csurf`, automatically injected into same-origin requests
-- Multi-backend API proxy at `/api/proxy/{backendName}/...` with per-backend URL configuration
+- Multi-backend API proxy at `/proxy/{backendName}/...` with per-backend URL configuration
 - SSR auth header injection for `$fetch` and `globalThis.fetch`
 - Session enrichment with roles from a GraphQL `me` endpoint
 - Composables: `useUser()`, `useLogin()`, `useLogout()`, `useApiEndpoint()`
@@ -67,6 +67,8 @@ modules: [['@interline-io/tlv2-auth', { autoAppBaseUrl: true }]]
 | `proxyBase` | `string \| Record<string, string>` | — | Backend URL(s) for the API proxy |
 | `requireLogin` | `boolean` | `false` | Redirect unauthenticated users to Auth0 login |
 | `loginGate` | `boolean` | `false` | Show login UI gate |
+| `authPrefix` | `string` | `'/auth'` | URL prefix for auth routes (login, logout, session) |
+| `proxyPrefix` | `string` | `'/proxy'` | URL prefix for the proxy route |
 | `autoAppBaseUrl` | `boolean` | `false` | Derive auth0 `appBaseUrl` from request `Host` header (see below) |
 
 ### `autoAppBaseUrl`
@@ -81,7 +83,7 @@ The module includes a synchronous Nitro plugin that works around a race conditio
 
 ## API proxy
 
-The proxy at `/api/proxy/{backendName}/...` forwards requests to the backend URL configured in `runtimeConfig.tlv2.proxyBase.{backendName}`.
+The proxy at `/proxy/{backendName}/...` (configurable via `proxyPrefix`) forwards requests to the backend URL configured in `runtimeConfig.tlv2.proxyBase.{backendName}`.
 
 - Unauthenticated requests get the server's default API key injected
 - Authenticated requests additionally get the user's JWT

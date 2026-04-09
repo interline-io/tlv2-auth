@@ -1,4 +1,6 @@
 import type { Plugin } from '#app'
+// @ts-expect-error — useCsrf is auto-imported by nuxt-csurf at runtime but not
+// visible during module-level typecheck since nuxt-csurf is installed dynamically.
 import { defineNuxtPlugin, useCsrf } from '#imports'
 
 function isSameOrigin (url: string | URL | Request): boolean {

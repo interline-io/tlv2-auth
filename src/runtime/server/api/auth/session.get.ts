@@ -14,7 +14,7 @@ async function fetchMeData (proxyBase: string, headers: Record<string, string>) 
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: '{ me { id name email roles } }' })
   }).catch((e: Error) => {
-    console.warn('[tlv2-auth] /api/auth/session: GraphQL me query network error:', e.message)
+    console.warn('[tlv2-auth] /auth/session: GraphQL me query network error:', e.message)
     return null
   })
   if (!response || !response.ok) {
@@ -30,14 +30,14 @@ async function fetchMeData (proxyBase: string, headers: Record<string, string>) 
         }
       }
       console.warn(
-        `[tlv2-auth] /api/auth/session: GraphQL me query returned ${response.status} — check iss/aud`,
+        `[tlv2-auth] /auth/session: GraphQL me query returned ${response.status} — check iss/aud`,
         { url: `${proxyBase}/query`, hasApikey: !!headers.apikey, jwt: jwtInfo }
       )
     }
     return null
   }
   const json = await response.json().catch((e: Error) => {
-    console.warn('[tlv2-auth] /api/auth/session: Failed to parse GraphQL response as JSON:', e.message)
+    console.warn('[tlv2-auth] /auth/session: Failed to parse GraphQL response as JSON:', e.message)
     return null
   })
   return json?.data?.me ?? null
