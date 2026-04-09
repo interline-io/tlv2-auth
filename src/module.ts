@@ -122,7 +122,14 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolveRuntimeModule('server/api/auth/session.get')
     })
 
-    // Proxy — routes /{proxyPrefix}/{backend}/... to the configured proxyBase for that backend
+    // Proxy — routes /{proxyPrefix}/{backend}/... to the configured proxyBase for that backend.
+    // Enforce CSRF on ALL methods (including GET) because the proxy injects
+    // server-side credentials (API key, JWT) — without CSRF, a cross-origin
+    // request could ride the user's session cookies to abuse those credentials.
+    nuxt.options.routeRules = defu(
+      { [`${proxyPrefix}/**`]: { csurf: { methodsToProtect: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] } } },
+      nuxt.options.routeRules
+    )
     addServerHandler({
       route: `${proxyPrefix}/**`,
       handler: resolveRuntimeModule('server/api/proxy')

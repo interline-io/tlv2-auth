@@ -1,4 +1,4 @@
-import { defineEventHandler, createError, getHeader } from 'h3'
+import { defineEventHandler, createError } from 'h3'
 import { useRuntimeConfig } from '#imports'
 import { proxyHandler } from '../../util/proxy'
 import { parseProxyRoute, resolveProxyBase } from '../../util/proxy-route'
@@ -7,22 +7,9 @@ import { useAuth0Session } from '../useSession'
 // Proxy allows unauthenticated access by design — the server's default API key
 // is injected for all requests so unauthenticated users can query backends.
 // Authenticated users additionally get their JWT attached.
-//
-// CSRF is enforced on ALL methods (including GET) because the proxy injects
-// server-side credentials (API key, JWT) — without CSRF, a cross-origin
-// request could ride the user's session cookies to abuse those credentials.
+// CSRF is enforced on all methods (including GET) via routeRules in module.ts.
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
-
-  const csrfHeaderName = (config as any).csurf?.headerName || 'csrf-token'
-  const csrfToken = event.context.csrfToken
-  const clientToken = getHeader(event, csrfHeaderName)
-  if (!csrfToken || csrfToken !== clientToken) {
-    throw createError({
-      statusCode: 403,
-      message: '[tlv2-proxy] CSRF token missing or invalid'
-    })
-  }
 
   const proxyPrefix = config.public?.tlv2?.proxyPrefix || '/proxy'
   const parsed = parseProxyRoute(event.path || '', proxyPrefix)
