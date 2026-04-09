@@ -12,16 +12,17 @@ import { useAuth0Session } from '../useSession'
 // server-side credentials (API key, JWT) — without CSRF, a cross-origin
 // request could ride the user's session cookies to abuse those credentials.
 export default defineEventHandler(async (event) => {
+  const config = useRuntimeConfig(event)
+
+  const csrfHeaderName = (config as any).csurf?.headerName || 'csrf-token'
   const csrfToken = event.context.csrfToken
-  const clientToken = getHeader(event, 'csrf-token')
+  const clientToken = getHeader(event, csrfHeaderName)
   if (!csrfToken || csrfToken !== clientToken) {
     throw createError({
       statusCode: 403,
       message: '[tlv2-proxy] CSRF token missing or invalid'
     })
   }
-
-  const config = useRuntimeConfig(event)
 
   const proxyPrefix = config.public?.tlv2?.proxyPrefix || '/proxy'
   const parsed = parseProxyRoute(event.path || '', proxyPrefix)
