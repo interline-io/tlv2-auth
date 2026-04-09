@@ -1,5 +1,9 @@
 import type { Plugin } from '#app'
-import { defineNuxtPlugin, useCsrf } from '#imports'
+import { defineNuxtPlugin } from '#imports'
+
+// useCsrf is auto-imported by nuxt-csurf at runtime, but not visible during
+// module-level typecheck since nuxt-csurf is installed dynamically.
+declare function useCsrf (): { csrf: string, headerName: string }
 
 function isSameOrigin (url: string | URL | Request): boolean {
   const target = url instanceof Request ? url.url : String(url)
