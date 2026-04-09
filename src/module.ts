@@ -60,7 +60,15 @@ export default defineNuxtModule<ModuleOptions>({
         autoAppBaseUrl: options.autoAppBaseUrl,
       })
       addServerPlugin(resolveRuntimeModule('server/plugins/auth0-init'))
-      await installModule('@auth0/auth0-nuxt', {})
+      const authPrefix = options.authPrefix!
+      await installModule('@auth0/auth0-nuxt', {
+        routes: {
+          login: `${authPrefix}/login`,
+          logout: `${authPrefix}/logout`,
+          callback: `${authPrefix}/callback`,
+          backchannelLogout: `${authPrefix}/backchannel-logout`,
+        }
+      })
       addServerHandler({
         middleware: true,
         handler: resolveRuntimeModule('server/middleware/auth0')
