@@ -2,6 +2,7 @@ import { defineEventHandler, createError } from 'h3'
 import { useRuntimeConfig } from '#imports'
 import { proxyHandler } from '../../util/proxy'
 import { parseProxyRoute, resolveProxyBase } from '../../util/proxy-route'
+import { DEFAULT_PROXY_PREFIX } from '../../util/defaults'
 import { useAuth0Session } from '../useSession'
 
 // Proxy allows unauthenticated access by design — the server's default API key
@@ -11,7 +12,7 @@ import { useAuth0Session } from '../useSession'
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
 
-  const proxyPrefix = config.public?.tlv2?.proxyPrefix || '/proxy'
+  const proxyPrefix = config.public?.tlv2?.proxyPrefix || DEFAULT_PROXY_PREFIX
   const parsed = parseProxyRoute(event.path || '', proxyPrefix)
   if (!parsed) {
     throw createError({

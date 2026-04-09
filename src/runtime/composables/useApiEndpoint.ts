@@ -1,4 +1,5 @@
 import { useRuntimeConfig } from '#imports'
+import { DEFAULT_PROXY_PREFIX } from '../util/defaults'
 
 export const useApiEndpoint = (path?: string, clientName?: string) => {
   clientName = clientName || 'default'
@@ -11,7 +12,7 @@ export const useApiEndpoint = (path?: string, clientName?: string) => {
   }
   if (import.meta.client) {
     // Client-side: route through the per-backend proxy
-    const proxyPrefix = config.public.tlv2?.proxyPrefix || '/proxy'
+    const proxyPrefix = config.public.tlv2?.proxyPrefix || DEFAULT_PROXY_PREFIX
     base = window.location.origin + proxyPrefix + '/' + clientName
   }
   return base + (path || '')

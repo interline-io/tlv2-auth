@@ -1,5 +1,6 @@
 import { defineNuxtModule, addPlugin, addServerPlugin, createResolver, addImportsDir, addServerHandler, installModule } from '@nuxt/kit'
 import { defu } from 'defu'
+import { DEFAULT_AUTH_PREFIX, DEFAULT_PROXY_PREFIX } from './runtime/util/defaults'
 
 export interface ModuleOptions {
   proxyBase?: string | Record<string, string>
@@ -9,15 +10,17 @@ export interface ModuleOptions {
   authPrefix?: string
   /** URL prefix for the proxy route. Default: '/proxy' */
   proxyPrefix?: string
-  /** Derive auth0 appBaseUrl from the request Host header instead of using
+  /**
+   * Derive auth0 appBaseUrl from the request Host header instead of using
    *  the static NUXT_AUTH0_APP_BASE_URL value. Useful for branch/preview
    *  deploys where the URL isn't known at build time (e.g. Cloudflare Pages,
-   *  Vercel preview deployments). */
+   *  Vercel preview deployments).
+   */
   autoAppBaseUrl?: boolean
 }
 
-function normalizePrefix (value: string | undefined, fallback: string): string {
-  const raw = (value || fallback).replace(/\/+$/, '')
+function normalizePrefix (value: string): string {
+  const raw = value.replace(/\/+$/, '')
   if (!raw.startsWith('/')) {
     throw new Error(`[tlv2-auth] Route prefix must start with "/", got: "${raw}"`)
   }
@@ -35,16 +38,16 @@ export default defineNuxtModule<ModuleOptions>({
   defaults: {
     requireLogin: false,
     loginGate: false,
-    authPrefix: '/auth',
-    proxyPrefix: '/proxy',
+    authPrefix: DEFAULT_AUTH_PREFIX,
+    proxyPrefix: DEFAULT_PROXY_PREFIX,
     autoAppBaseUrl: false,
   },
   async setup (options, nuxt) {
     const resolver = createResolver(import.meta.url)
     const resolveRuntimeModule = (path: string) => resolver.resolve('./runtime', path)
 
-    const authPrefix = normalizePrefix(options.authPrefix, '/auth')
-    const proxyPrefix = normalizePrefix(options.proxyPrefix, '/proxy')
+    const authPrefix = normalizePrefix(options.authPrefix!)
+    const proxyPrefix = normalizePrefix(options.proxyPrefix!)
 
     // CSRF protection (required for all requests, including unauthenticated)
     await installModule('nuxt-csurf', { addCsrfTokenToEventCtx: true })
@@ -127,7 +130,9 @@ export default defineNuxtModule<ModuleOptions>({
     // server-side credentials (API key, JWT) — without CSRF, a cross-origin
     // request could ride the user's session cookies to abuse those credentials.
     nuxt.options.routeRules = defu(
-      { [`${proxyPrefix}/**`]: { csurf: { methodsToProtect: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] } } },
+      // nuxt-csurf augments NitroRouteConfig with `csurf`, but the types
+      // aren't visible until the module is installed at runtime.
+      { [`${proxyPrefix}/**`]: { csurf: { methodsToProtect: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] } } } as Record<string, any>,
       nuxt.options.routeRules
     )
     addServerHandler({
