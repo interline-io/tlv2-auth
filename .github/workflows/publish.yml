@@ -46,13 +46,13 @@ jobs:
           fi
 
       - name: Set version
-        run: npm version ${{ steps.meta.outputs.version }} --no-git-tag-version
+        run: pnpm version ${{ steps.meta.outputs.version }} --no-git-tag-version
 
       - name: Build
         run: pnpm prepack
 
       - name: Publish
-        run: npm publish --tag ${{ steps.meta.outputs.tag }}
+        run: pnpm publish --no-git-checks --tag ${{ steps.meta.outputs.tag }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
