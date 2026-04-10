@@ -20,6 +20,22 @@
     </section>
 
     <section style="margin-top: 2rem;">
+      <h2>Session</h2>
+      <button :disabled="sessionLoading" @click="fetchSession">
+        {{ sessionLoading ? 'Loading...' : 'Fetch /auth/session' }}
+      </button>
+      <div v-if="sessionStatus" style="margin-top: 0.75rem;">
+        <p>
+          Status: <strong :style="{ color: sessionStatus >= 400 ? 'red' : 'green' }">{{ sessionStatus }}</strong>
+        </p>
+      </div>
+      <pre
+        v-if="sessionResult !== null"
+        style="margin-top: 0.5rem; background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; max-height: 400px; overflow-y: auto;"
+      >{{ sessionResult }}</pre>
+    </section>
+
+    <section style="margin-top: 2rem;">
       <h2>Proxy Test</h2>
       <p style="color: #666; font-size: 0.9rem;">
         Sends a GraphQL query through the proxy to test JWT auth against the backend.
@@ -37,9 +53,6 @@
       <div style="margin-top: 0.5rem;">
         <button :disabled="proxyLoading" @click="runProxyQuery">
           {{ proxyLoading ? 'Loading...' : 'Send via Proxy' }}
-        </button>
-        <button style="margin-left: 0.5rem;" @click="fetchSession">
-          Fetch /auth/session
         </button>
       </div>
       <div v-if="proxyStatus" style="margin-top: 0.75rem;">
@@ -63,10 +76,34 @@ const user = useUser()
 const login = () => useLogin(null)
 const logout = () => useLogout()
 
+const sessionResult = ref<string | null>(null)
+const sessionStatus = ref<number | null>(null)
+const sessionLoading = ref(false)
+
 const proxyQuery = ref('{ me { id name email roles } }')
 const proxyResult = ref<string | null>(null)
 const proxyStatus = ref<number | null>(null)
 const proxyLoading = ref(false)
+
+async function fetchSession () {
+  sessionLoading.value = true
+  sessionResult.value = null
+  sessionStatus.value = null
+  try {
+    const response = await fetch('/auth/session')
+    sessionStatus.value = response.status
+    const text = await response.text()
+    try {
+      sessionResult.value = JSON.stringify(JSON.parse(text), null, 2)
+    } catch {
+      sessionResult.value = text
+    }
+  } catch (e: any) {
+    sessionResult.value = `Fetch error: ${e.message}`
+  } finally {
+    sessionLoading.value = false
+  }
+}
 
 async function runProxyQuery () {
   proxyLoading.value = true
@@ -74,32 +111,11 @@ async function runProxyQuery () {
   proxyStatus.value = null
   try {
     const url = useApiEndpoint('/query')
-    console.log('[playground] proxy request to:', url)
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: proxyQuery.value })
     })
-    proxyStatus.value = response.status
-    const text = await response.text()
-    try {
-      proxyResult.value = JSON.stringify(JSON.parse(text), null, 2)
-    } catch {
-      proxyResult.value = text
-    }
-  } catch (e: any) {
-    proxyResult.value = `Fetch error: ${e.message}`
-  } finally {
-    proxyLoading.value = false
-  }
-}
-
-async function fetchSession () {
-  proxyLoading.value = true
-  proxyResult.value = null
-  proxyStatus.value = null
-  try {
-    const response = await fetch('/auth/session')
     proxyStatus.value = response.status
     const text = await response.text()
     try {
