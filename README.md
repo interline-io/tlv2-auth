@@ -1,11 +1,10 @@
 # @interline-io/tlv2-auth
 
-Nuxt 4 module providing authentication, CSRF protection, and API proxying for Transitland v2 applications. Replaces client-side Auth0 SPA token flow with server-side sessions via `@auth0/auth0-nuxt` using HTTP-only cookies.
+Nuxt 4 module providing authentication and API proxying for Transitland v2 applications. Replaces client-side Auth0 SPA token flow with server-side sessions via `@auth0/auth0-nuxt` using HTTP-only cookies.
 
 ## Features
 
 - Server-side Auth0 sessions (conditionally installed only when `clientId` is configured)
-- CSRF protection via `nuxt-csurf`, automatically injected into same-origin requests
 - Multi-backend API proxy at `/proxy/{backendName}/...` with per-backend URL configuration
 - SSR auth header injection for `$fetch` and `globalThis.fetch`
 - Session enrichment with roles from a GraphQL `me` endpoint
@@ -64,8 +63,9 @@ modules: [['@interline-io/tlv2-auth', { autoAppBaseUrl: true }]]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `proxy` | `boolean` | `false` | Enable the API proxy |
 | `proxyBase` | `string \| Record<string, string>` | — | Backend URL(s) for the API proxy |
-| `requireLogin` | `boolean` | `false` | Redirect unauthenticated users to Auth0 login |
+| `requireLogin` | `boolean` | `false` | Redirect unauthenticated users to Auth0 login; also rejects unauthenticated proxy requests with 401 |
 | `loginGate` | `boolean` | `false` | Show login UI gate |
 | `authPrefix` | `string` | `'/auth'` | URL prefix for auth routes (login, logout, session) |
 | `proxyPrefix` | `string` | `'/proxy'` | URL prefix for the proxy route |
@@ -88,6 +88,9 @@ The proxy at `/proxy/{backendName}/...` (configurable via `proxyPrefix`) forward
 - Unauthenticated requests get the server's default API key injected
 - Authenticated requests additionally get the user's JWT
 - Callers may provide their own API key via `?apikey=` query param or `apikey` header, which takes precedence over the default
+- When `requireLogin` is `true`, unauthenticated proxy requests are rejected with 401
+
+**CSRF protection:** This module does not include CSRF protection. The proxy injects server-side credentials on behalf of the user, so consuming applications should configure their own CSRF protection (e.g. [`nuxt-csurf`](https://github.com/Morgbn/nuxt-csurf)) on proxy routes. This is especially important when `requireLogin` is `false`, as the proxy will forward requests with the server's API key for any caller. Note that `nuxt-csurf` only intercepts Nuxt's `$fetch` — if your app uses `globalThis.fetch` directly (e.g. Apollo), you will need a client plugin to inject the CSRF token on same-origin requests.
 
 ## Composables
 
@@ -128,5 +131,4 @@ Every push to `main` also publishes a SHA pre-release (`0.0.0-sha.<sha>`) for in
 ## Dependencies
 
 - `@auth0/auth0-nuxt` — server-side Auth0 sessions
-- `nuxt-csurf` — CSRF protection
 - `defu` — config merging

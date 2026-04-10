@@ -5,10 +5,9 @@ import { parseProxyRoute, resolveProxyBase } from '../../util/proxy-route'
 import { DEFAULT_PROXY_PREFIX } from '../../util/defaults'
 import { useAuth0Session } from '../useSession'
 
-// Proxy allows unauthenticated access by design — the server's default API key
-// is injected for all requests so unauthenticated users can query backends.
-// Authenticated users additionally get their JWT attached.
-// CSRF is enforced on all methods (including GET) via routeRules in module.ts.
+// Unauthenticated requests get the server's default API key injected.
+// Authenticated requests additionally get their JWT attached.
+// When requireLogin is enabled, unauthenticated requests are rejected.
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
 
@@ -32,6 +31,13 @@ export default defineEventHandler(async (event) => {
   }
 
   const auth = await useAuth0Session(event)
+
+  if (!auth.loggedIn && config.public?.tlv2?.requireLogin) {
+    throw createError({
+      statusCode: 401,
+      message: '[tlv2-proxy] Authentication required'
+    })
+  }
 
   return proxyHandler(
     event,
