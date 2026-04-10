@@ -2,7 +2,7 @@ import { defineEventHandler } from 'h3'
 import { useRuntimeConfig } from '#imports'
 import { enrichUserClaims } from '../../../util/enrich'
 import { useAuth0Session } from '../../useSession'
-import { traceEnabled, trace } from '../../../util/log'
+import { traceEnabled, trace, traceUserClaims } from '../../../util/log'
 
 // Fetch roles from the GraphQL `me` endpoint. Returns null if the backend
 // is unreachable or returns an error — enrichment is best-effort since the
@@ -64,7 +64,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (traceEnabled) {
-    trace('session.get — user claims:', auth.user)
+    traceUserClaims('session.get — user claims:', auth.user)
   }
 
   // Enrich with roles from GraphQL `me` endpoint if backend is configured

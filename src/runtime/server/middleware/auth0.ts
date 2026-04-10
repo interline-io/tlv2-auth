@@ -1,7 +1,7 @@
 import { defineEventHandler } from 'h3'
 // @ts-expect-error useAuth0 is added to #imports by @auth0/auth0-nuxt via addServerImportsDir
 import { useAuth0 } from '#imports'
-import { traceEnabled, trace, traceAccessToken } from '../../util/log'
+import { traceEnabled, trace, traceUserClaims, traceAccessToken } from '../../util/log'
 
 // Server middleware that extracts auth0 session and attaches it to event.context.
 // Provides a lazy getAccessToken so the token is only fetched when a handler needs it,
@@ -15,10 +15,7 @@ export default defineEventHandler(async (event) => {
   const session = await auth0.getSession()
   if (traceEnabled) {
     trace('auth0 middleware — raw session keys:', session ? Object.keys(session) : null)
-    trace('auth0 middleware — session.user:', session?.user)
-    if (session && (session as any).idToken) {
-      trace('auth0 middleware — session.idToken:', (session as any).idToken)
-    }
+    traceUserClaims('auth0 middleware — session.user:', session?.user)
     if (session && (session as any).tokenType) {
       trace('auth0 middleware — session.tokenType:', (session as any).tokenType)
     }
