@@ -1,6 +1,7 @@
 import type { Plugin } from '#app'
 import { defineNuxtPlugin, useRuntimeConfig } from '#imports'
 import { useAuth0Session } from '../server/useSession'
+import { traceEnabled, trace } from '../util/log'
 
 // Server-side auth header injection for SSR requests.
 // Overrides globalThis.$fetch and globalThis.fetch to inject the user's JWT
@@ -38,6 +39,9 @@ const plugin: Plugin = defineNuxtPlugin((nuxtApp) => {
     const event = nuxtApp.ssrContext?.event
     if (event) {
       const auth = await useAuth0Session(event)
+      if (traceEnabled) {
+        trace('auth.server getAuthHeaders — loggedIn:', auth.loggedIn, 'hasToken:', !!auth.accessToken)
+      }
       if (auth.accessToken) {
         headers.Authorization = `Bearer ${auth.accessToken}`
       }

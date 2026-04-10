@@ -39,4 +39,8 @@ export default defineNuxtConfig({
       },
     },
   },
+
+  tlv2Auth: {
+    proxyEnabled: true,
+  },
 })

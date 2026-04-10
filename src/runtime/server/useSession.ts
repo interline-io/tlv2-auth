@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3'
+import { traceEnabled, trace } from '../util/log'
 
 export interface SessionContext {
   loggedIn: boolean
@@ -21,11 +22,21 @@ function anonymousSession (): SessionContext {
 export async function useAuth0Session (event: H3Event): Promise<SessionContext> {
   const session = event.context.auth0Session
   if (!session) {
+    if (traceEnabled) {
+      trace('useAuth0Session — no auth0Session in event context, returning anonymous')
+    }
     return anonymousSession()
+  }
+  if (traceEnabled) {
+    trace('useAuth0Session — fetching access token for user:', session.user?.sub)
+  }
+  const accessToken = await session.getAccessToken()
+  if (traceEnabled) {
+    trace('useAuth0Session — accessToken length:', accessToken?.length, 'empty:', !accessToken)
   }
   return {
     loggedIn: true,
     user: session.user,
-    accessToken: await session.getAccessToken()
+    accessToken
   }
 }

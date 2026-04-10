@@ -2,6 +2,7 @@ import { defineEventHandler } from 'h3'
 import { useRuntimeConfig } from '#imports'
 import { enrichUserClaims } from '../../../util/enrich'
 import { useAuth0Session } from '../../useSession'
+import { traceEnabled, trace, traceUserClaims } from '../../../util/log'
 
 // Fetch roles from the GraphQL `me` endpoint. Returns null if the backend
 // is unreachable or returns an error — enrichment is best-effort since the
@@ -48,15 +49,29 @@ async function fetchMeData (proxyBase: string, headers: Record<string, string>) 
 // logged in. Used by the client-side auth plugin to populate user state,
 // especially when SSR is disabled (ssr: false).
 export default defineEventHandler(async (event) => {
+  if (traceEnabled) {
+    trace('session.get — handler invoked')
+  }
   const auth = await useAuth0Session(event)
+  if (traceEnabled) {
+    trace('session.get — loggedIn:', auth.loggedIn, 'hasUser:', !!auth.user, 'hasToken:', !!auth.accessToken)
+  }
   if (!auth.loggedIn || !auth.user) {
+    if (traceEnabled) {
+      trace('session.get — not logged in, returning null')
+    }
     return null
   }
+
+  traceUserClaims('session.get — user claims:', auth.user)
 
   // Enrich with roles from GraphQL `me` endpoint if backend is configured
   const config = useRuntimeConfig(event)
   const proxyBase = config.tlv2?.proxyBase?.default
   if (!proxyBase) {
+    if (traceEnabled) {
+      trace('session.get — no proxyBase configured, returning user claims without enrichment')
+    }
     return auth.user
   }
 
@@ -68,6 +83,13 @@ export default defineEventHandler(async (event) => {
     headers.apikey = config.tlv2.graphqlApikey
   }
 
+  if (traceEnabled) {
+    trace('session.get — calling fetchMeData with proxyBase:', proxyBase, 'hasToken:', !!auth.accessToken, 'hasApikey:', !!headers.apikey)
+  }
+
   const meData = await fetchMeData(proxyBase, headers)
+  if (traceEnabled) {
+    trace('session.get — fetchMeData result:', meData)
+  }
   return enrichUserClaims(auth.user, meData)
 })
