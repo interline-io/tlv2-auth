@@ -1,15 +1,16 @@
-const isDev = typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production'
-const tlLog = typeof process !== 'undefined' ? process.env?.TL_LOG : undefined
+const env = typeof process !== 'undefined' ? process.env : undefined
 
 // TL_LOG=trace enables trace logging in dev mode only.
-export const traceEnabled = isDev && tlLog === 'trace'
+export const traceEnabled = env?.NODE_ENV !== 'production' && env?.TL_LOG === 'trace'
 
 export function trace (label: string, ...args: any[]) {
   console.log(`[tlv2-auth:trace] ${label}`, ...args)
 }
 
 // Log safe structural info from a user claims object (no PII).
+// Guard is internal so callers don't need `if (traceEnabled)`.
 export function traceUserClaims (label: string, user: Record<string, any> | null | undefined) {
+  if (!traceEnabled) { return }
   if (!user) {
     trace(label, null)
     return

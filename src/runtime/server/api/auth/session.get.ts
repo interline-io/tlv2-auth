@@ -63,9 +63,7 @@ export default defineEventHandler(async (event) => {
     return null
   }
 
-  if (traceEnabled) {
-    traceUserClaims('session.get — user claims:', auth.user)
-  }
+  traceUserClaims('session.get — user claims:', auth.user)
 
   // Enrich with roles from GraphQL `me` endpoint if backend is configured
   const config = useRuntimeConfig(event)
