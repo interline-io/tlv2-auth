@@ -28,8 +28,13 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: '@interline-io'
 
+      - name: Authenticate GitHub Packages
+        run: echo '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' >> .npmrc
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compute version and tags
         id: meta
@@ -78,8 +83,13 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: '@interline-io'
 
+      - name: Authenticate GitHub Packages
+        run: echo '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' >> .npmrc
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create release PR or publish
         uses: changesets/action@v1
