@@ -28,14 +28,7 @@ export async function proxyHandler (
   const target = buildProxyTarget(proxyBase, pathOverride ?? event.path)
 
   if (traceEnabled) {
-    trace('proxy —', JSON.stringify({
-      target,
-      proxyBase,
-      path: pathOverride ?? event.path,
-      accessToken: accessToken || '(none)',
-      apikey: headers.apikey || '(none)',
-      allHeaders: headers
-    }, null, 2))
+    trace('proxy — target:', target, 'path:', pathOverride ?? event.path, 'hasToken:', !!accessToken, 'hasApikey:', !!headers.apikey)
   }
 
   return proxyRequest(event, target, {

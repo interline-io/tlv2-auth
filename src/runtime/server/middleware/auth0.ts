@@ -1,7 +1,7 @@
 import { defineEventHandler } from 'h3'
 // @ts-expect-error useAuth0 is added to #imports by @auth0/auth0-nuxt via addServerImportsDir
 import { useAuth0 } from '#imports'
-import { traceEnabled, trace } from '../../util/log'
+import { traceEnabled, trace, traceAccessToken } from '../../util/log'
 
 // Server middleware that extracts auth0 session and attaches it to event.context.
 // Provides a lazy getAccessToken so the token is only fetched when a handler needs it,
@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   const session = await auth0.getSession()
   if (traceEnabled) {
     trace('auth0 middleware — raw session keys:', session ? Object.keys(session) : null)
-    trace('auth0 middleware — session.user:', JSON.stringify(session?.user, null, 2))
+    trace('auth0 middleware — session.user:', session?.user)
     if (session && (session as any).idToken) {
       trace('auth0 middleware — session.idToken:', (session as any).idToken)
     }
@@ -35,27 +35,8 @@ export default defineEventHandler(async (event) => {
       const token = t.accessToken || ''
       if (traceEnabled) {
         trace('getAccessToken result keys:', t ? Object.keys(t) : null)
-        trace('getAccessToken full result:', JSON.stringify(t, null, 2))
         if (token) {
-          const parts = token.split('.')
-          trace('accessToken part count:', parts.length, '(3=JWS, 5=JWE)')
-          trace('accessToken full value:', token)
-          if (parts.length >= 2) {
-            try {
-              const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString())
-              trace('accessToken header (decoded):', JSON.stringify(header, null, 2))
-            } catch (e: any) {
-              trace('accessToken header decode FAILED:', e.message)
-              trace('accessToken header raw base64url:', parts[0])
-            }
-            try {
-              const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
-              trace('accessToken payload (decoded):', JSON.stringify(payload, null, 2))
-            } catch (e: any) {
-              trace('accessToken payload decode FAILED (likely encrypted/JWE):', e.message)
-              trace('accessToken payload raw base64url:', parts[1])
-            }
-          }
+          traceAccessToken(token)
         } else {
           trace('getAccessToken returned empty token')
         }

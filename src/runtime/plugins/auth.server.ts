@@ -40,12 +40,9 @@ const plugin: Plugin = defineNuxtPlugin((nuxtApp) => {
     if (event) {
       const auth = await useAuth0Session(event)
       if (traceEnabled) {
-        trace('auth.server getAuthHeaders — loggedIn:', auth.loggedIn, 'tokenLength:', auth.accessToken?.length)
+        trace('auth.server getAuthHeaders — loggedIn:', auth.loggedIn, 'hasToken:', !!auth.accessToken)
       }
       if (auth.accessToken) {
-        if (traceEnabled) {
-          trace('auth.server getAuthHeaders — accessToken:', auth.accessToken)
-        }
         headers.Authorization = `Bearer ${auth.accessToken}`
       }
     }

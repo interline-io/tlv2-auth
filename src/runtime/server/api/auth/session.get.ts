@@ -64,8 +64,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (traceEnabled) {
-    trace('session.get — user claims:', JSON.stringify(auth.user, null, 2))
-    trace('session.get — accessToken full value:', auth.accessToken)
+    trace('session.get — user claims:', auth.user)
   }
 
   // Enrich with roles from GraphQL `me` endpoint if backend is configured
@@ -87,12 +86,12 @@ export default defineEventHandler(async (event) => {
   }
 
   if (traceEnabled) {
-    trace('session.get — calling fetchMeData with proxyBase:', proxyBase, 'headers:', JSON.stringify(headers))
+    trace('session.get — calling fetchMeData with proxyBase:', proxyBase, 'hasToken:', !!auth.accessToken, 'hasApikey:', !!headers.apikey)
   }
 
   const meData = await fetchMeData(proxyBase, headers)
   if (traceEnabled) {
-    trace('session.get — fetchMeData result:', JSON.stringify(meData, null, 2))
+    trace('session.get — fetchMeData result:', meData)
   }
   return enrichUserClaims(auth.user, meData)
 })

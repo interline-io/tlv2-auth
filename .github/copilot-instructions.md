@@ -10,7 +10,12 @@ pnpm dev              # Start playground dev server (http://localhost:3000)
 pnpm build            # Build the module
 pnpm test             # Run all tests (vitest)
 pnpm lint             # ESLint
+pnpm check            # Lint + typecheck (must pass before task is complete)
 ```
+
+## Validation
+
+Always run `pnpm check` (lint + typecheck) before considering any task complete. Do not skip this step. If it fails, fix the errors before finishing.
 
 ## Making changes
 
