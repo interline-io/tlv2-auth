@@ -88,6 +88,9 @@ The proxy at `/proxy/{backendName}/...` (configurable via `proxyPrefix`) forward
 - Unauthenticated requests get the server's default API key injected
 - Authenticated requests additionally get the user's JWT
 - Callers may provide their own API key via `?apikey=` query param or `apikey` header, which takes precedence over the default
+- When `requireLogin` is `true`, unauthenticated proxy requests are rejected with 401
+
+**CSRF protection:** This module does not include CSRF protection. The proxy injects server-side credentials on behalf of the user, so consuming applications should configure their own CSRF protection (e.g. [`nuxt-csurf`](https://github.com/Morgbn/nuxt-csurf)) on proxy routes. This is especially important when `requireLogin` is `false`, as the proxy will forward requests with the server's API key for any caller. Note that `nuxt-csurf` only intercepts Nuxt's `$fetch` — if your app uses `globalThis.fetch` directly (e.g. Apollo), you will need a client plugin to inject the CSRF token on same-origin requests.
 
 ## Composables
 
