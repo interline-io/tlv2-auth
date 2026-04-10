@@ -40,6 +40,9 @@ export function buildProxyTarget (proxyBase: string, requestPath: string): strin
   const proxyBasePathname = proxyBaseUrl.pathname === '/' ? '' : proxyBaseUrl.pathname
   const newPath = proxyBasePathname + requestPath
   const resolved = new URL(newPath, proxyBaseUrl.toString())
+  if (resolved.origin !== proxyBaseUrl.origin) {
+    throw new Error(`[tlv2-proxy] SSRF detected: ${requestPath}`)
+  }
   if (proxyBasePathname && !resolved.pathname.startsWith(proxyBasePathname)) {
     throw new Error(`[tlv2-proxy] Path traversal detected: ${requestPath}`)
   }

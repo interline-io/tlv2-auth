@@ -113,6 +113,22 @@ describe('buildProxyTarget', () => {
     expect(buildProxyTarget('https://api.example.com/api/v2', '/feeds/../feeds/123'))
       .toBe('https://api.example.com/api/v2/feeds/123')
   })
+
+  it('throws on scheme-relative SSRF (root proxyBase)', () => {
+    expect(() => buildProxyTarget('https://api.example.com', '//attacker.com/data'))
+      .toThrow('[tlv2-proxy] SSRF detected')
+  })
+
+  it('is safe from scheme-relative SSRF with subpath proxyBase', () => {
+    // When proxyBase has a subpath, the // is treated as part of the path, not a host
+    expect(buildProxyTarget('https://api.example.com/api/v2', '//attacker.com/data'))
+      .toBe('https://api.example.com/api/v2//attacker.com/data')
+  })
+
+  it('throws on scheme-relative SSRF with port', () => {
+    expect(() => buildProxyTarget('https://api.example.com', '//attacker.com:6379/data'))
+      .toThrow('[tlv2-proxy] SSRF detected')
+  })
 })
 
 describe('buildProxyHeaders', () => {
