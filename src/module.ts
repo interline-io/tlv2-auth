@@ -3,6 +3,8 @@ import { defu } from 'defu'
 import { DEFAULT_AUTH_PREFIX, DEFAULT_PROXY_PREFIX } from './runtime/util/defaults'
 
 export interface ModuleOptions {
+  /** Enable the API proxy. Default: false */
+  proxy?: boolean
   proxyBase?: string | Record<string, string>
   requireLogin?: boolean
   loginGate?: boolean
@@ -36,6 +38,7 @@ export default defineNuxtModule<ModuleOptions>({
     }
   },
   defaults: {
+    proxy: false,
     requireLogin: false,
     loginGate: false,
     authPrefix: DEFAULT_AUTH_PREFIX,
@@ -121,10 +124,12 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolveRuntimeModule('server/api/auth/session.get')
     })
 
-    // Proxy — routes /{proxyPrefix}/{backend}/... to the configured proxyBase for that backend.
-    addServerHandler({
-      route: `${proxyPrefix}/**`,
-      handler: resolveRuntimeModule('server/api/proxy')
-    })
+    // Proxy — only registered when explicitly enabled.
+    if (options.proxy) {
+      addServerHandler({
+        route: `${proxyPrefix}/**`,
+        handler: resolveRuntimeModule('server/api/proxy')
+      })
+    }
   }
 })

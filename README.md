@@ -63,6 +63,7 @@ modules: [['@interline-io/tlv2-auth', { autoAppBaseUrl: true }]]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `proxy` | `boolean` | `false` | Enable the API proxy |
 | `proxyBase` | `string \| Record<string, string>` | — | Backend URL(s) for the API proxy |
 | `requireLogin` | `boolean` | `false` | Redirect unauthenticated users to Auth0 login |
 | `loginGate` | `boolean` | `false` | Show login UI gate |
