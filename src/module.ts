@@ -49,9 +49,6 @@ export default defineNuxtModule<ModuleOptions>({
     const authPrefix = normalizePrefix(options.authPrefix!)
     const proxyPrefix = normalizePrefix(options.proxyPrefix!)
 
-    // CSRF protection (required for all requests, including unauthenticated)
-    await installModule('nuxt-csurf', { addCsrfTokenToEventCtx: true })
-
     // Auth via auth0-nuxt (server-side sessions with HTTP-only cookies).
     // Only installed when clientId is configured — auth0-nuxt hard fails without it.
     // When installed, a server middleware populates event.context.auth0Session
@@ -111,9 +108,8 @@ export default defineNuxtModule<ModuleOptions>({
       }
     ))
 
-    // Setup plugins (run in order added — auth/CSRF must be before Apollo)
+    // Setup plugins
     addPlugin(resolveRuntimeModule('plugins/auth.server'))
-    addPlugin(resolveRuntimeModule('plugins/csrf.client'))
     addPlugin(resolveRuntimeModule('plugins/auth-enrich.client'))
 
     addImportsDir(resolveRuntimeModule('composables'))
@@ -126,15 +122,6 @@ export default defineNuxtModule<ModuleOptions>({
     })
 
     // Proxy — routes /{proxyPrefix}/{backend}/... to the configured proxyBase for that backend.
-    // Enforce CSRF on ALL methods (including GET) because the proxy injects
-    // server-side credentials (API key, JWT) — without CSRF, a cross-origin
-    // request could ride the user's session cookies to abuse those credentials.
-    nuxt.options.routeRules = defu(
-      // nuxt-csurf augments NitroRouteConfig with `csurf`, but the types
-      // aren't visible until the module is installed at runtime.
-      { [`${proxyPrefix}/**`]: { csurf: { methodsToProtect: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] } } } as Record<string, any>,
-      nuxt.options.routeRules
-    )
     addServerHandler({
       route: `${proxyPrefix}/**`,
       handler: resolveRuntimeModule('server/api/proxy')

@@ -39,8 +39,7 @@
   },
   "dependencies": {
     "@auth0/auth0-nuxt": "^1.0.1",
-    "defu": "^6.1.4",
-    "nuxt-csurf": "^1.6.5"
+    "defu": "^6.1.4"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.6.0",

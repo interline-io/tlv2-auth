@@ -8,7 +8,6 @@ import { useAuth0Session } from '../useSession'
 // Proxy allows unauthenticated access by design — the server's default API key
 // is injected for all requests so unauthenticated users can query backends.
 // Authenticated users additionally get their JWT attached.
-// CSRF is enforced on all methods (including GET) via routeRules in module.ts.
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
 

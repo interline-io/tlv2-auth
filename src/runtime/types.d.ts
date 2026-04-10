@@ -1,7 +1,7 @@
 // Type augmentations for runtime config.
-// nuxt-csurf and auth0-nuxt are installed dynamically via installModule() so
-// their type augmentations aren't visible during `nuxt typecheck` at the
-// module level. We declare the shapes we depend on here.
+// auth0-nuxt is installed dynamically via installModule() so its type
+// augmentations aren't visible during `nuxt typecheck` at the module level.
+// We declare the shapes we depend on here.
 
 declare module 'nuxt/schema' {
   interface RuntimeConfig {

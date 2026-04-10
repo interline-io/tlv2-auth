@@ -1,11 +1,10 @@
 # @interline-io/tlv2-auth
 
-Nuxt 4 module providing authentication, CSRF protection, and API proxying for Transitland v2 applications. Replaces client-side Auth0 SPA token flow with server-side sessions via `@auth0/auth0-nuxt` using HTTP-only cookies.
+Nuxt 4 module providing authentication and API proxying for Transitland v2 applications. Replaces client-side Auth0 SPA token flow with server-side sessions via `@auth0/auth0-nuxt` using HTTP-only cookies.
 
 ## Features
 
 - Server-side Auth0 sessions (conditionally installed only when `clientId` is configured)
-- CSRF protection via `nuxt-csurf`, automatically injected into same-origin requests
 - Multi-backend API proxy at `/proxy/{backendName}/...` with per-backend URL configuration
 - SSR auth header injection for `$fetch` and `globalThis.fetch`
 - Session enrichment with roles from a GraphQL `me` endpoint
@@ -128,5 +127,4 @@ Every push to `main` also publishes a SHA pre-release (`0.0.0-sha.<sha>`) for in
 ## Dependencies
 
 - `@auth0/auth0-nuxt` — server-side Auth0 sessions
-- `nuxt-csurf` — CSRF protection
 - `defu` — config merging
