@@ -1,6 +1,6 @@
 import { defineNuxtModule, addPlugin, addServerPlugin, createResolver, addImportsDir, addServerHandler, installModule } from '@nuxt/kit'
 import { defu } from 'defu'
-import { DEFAULT_AUTH_PREFIX, DEFAULT_PROXY_PREFIX } from './runtime/util/defaults'
+import { DEFAULT_AUTH_PREFIX, DEFAULT_PROXY_PREFIX, AUTH0_PLACEHOLDER_DOMAIN } from './runtime/util/defaults'
 
 export interface ModuleOptions {
   /** Enable the API proxy. Default: false */
@@ -69,9 +69,9 @@ export default defineNuxtModule<ModuleOptions>({
       // No clientId — seed all auth0 config with placeholders so the server
       // can start without auth credentials.
       nuxt.options.runtimeConfig.auth0 = {
-        domain: 'disabled',
-        clientId: 'disabled',
-        clientSecret: 'disabled',
+        domain: AUTH0_PLACEHOLDER_DOMAIN,
+        clientId: AUTH0_PLACEHOLDER_DOMAIN,
+        clientSecret: AUTH0_PLACEHOLDER_DOMAIN,
         appBaseUrl: 'http://localhost:3000',
         sessionSecret: randomBytes(32).toString('hex'),
       } as any
