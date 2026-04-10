@@ -1,5 +1,6 @@
 import { defineNitroPlugin, useRuntimeConfig } from 'nitropack/runtime'
 import { getRequestHeader } from 'h3'
+import { AUTH0_PLACEHOLDER_DOMAIN } from '../../util/defaults'
 
 // Synchronous Nitro plugin that ensures auth0ClientOptions is populated on
 // each request. No-ops when auth0-nuxt's own async plugin already ran.
@@ -11,14 +12,15 @@ import { getRequestHeader } from 'h3'
 // that patches the auth0 config per-request — useful for branch/preview
 // deploys where the URL isn't known at build time (not CF-specific).
 export default defineNitroPlugin((nitroApp) => {
+  const bootConfig = useRuntimeConfig()
+  const auth0Disabled = bootConfig.auth0?.domain === AUTH0_PLACEHOLDER_DOMAIN
+
   nitroApp.hooks.hook('request', (event) => {
-    if (event.context.auth0ClientOptions) {
+    event.context.auth0Disabled = auth0Disabled
+    if (auth0Disabled || event.context.auth0ClientOptions) {
       return
     }
     const config = useRuntimeConfig(event)
-    if (!config.auth0?.domain) {
-      return
-    }
     let { appBaseUrl } = config.auth0
     // Trusts x-forwarded-proto and Host headers — only safe behind a
     // trusted edge proxy (Cloudflare, Vercel, etc.)

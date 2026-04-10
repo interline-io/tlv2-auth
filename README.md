@@ -4,7 +4,7 @@ Nuxt 4 module providing authentication and API proxying for Transitland v2 appli
 
 ## Features
 
-- Server-side Auth0 sessions (conditionally installed only when `clientId` is configured)
+- Server-side Auth0 sessions (always bundled; gracefully disabled at runtime when credentials are absent)
 - Multi-backend API proxy at `/proxy/{backendName}/...` with per-backend URL configuration
 - SSR auth header injection for `$fetch` and `globalThis.fetch`
 - Session enrichment with roles from a GraphQL `me` endpoint
@@ -51,7 +51,7 @@ export default defineNuxtConfig({
 })
 ```
 
-Without Auth0 env vars, the module works without authentication — useful for local development.
+Auth0 is always installed at build time — no credentials are needed during the build. When `NUXT_AUTH0_*` env vars are absent at runtime, auth is automatically disabled and all users are treated as anonymous. This is useful for local development and headless browser testing where the proxy is needed but authentication is not.
 
 ## Module options
 
@@ -63,7 +63,7 @@ modules: [['@interline-io/tlv2-auth', { autoAppBaseUrl: true }]]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `proxy` | `boolean` | `false` | Enable the API proxy |
+| `proxyEnabled` | `boolean` | `false` | Enable the API proxy |
 | `proxyBase` | `string \| Record<string, string>` | — | Backend URL(s) for the API proxy |
 | `requireLogin` | `boolean` | `false` | Redirect unauthenticated users to Auth0 login; also rejects unauthenticated proxy requests with 401 |
 | `loginGate` | `boolean` | `false` | Show login UI gate |
