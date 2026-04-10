@@ -1,4 +1,4 @@
-import { defineNuxtModule, addPlugin, addServerPlugin, createResolver, addImportsDir, addComponentsDir, addServerHandler, installModule } from '@nuxt/kit'
+import { defineNuxtModule, addPlugin, addServerPlugin, createResolver, addImportsDir, addServerHandler, installModule } from '@nuxt/kit'
 import { defu } from 'defu'
 import { DEFAULT_AUTH_PREFIX, DEFAULT_PROXY_PREFIX } from './runtime/util/defaults'
 
@@ -135,7 +135,6 @@ export default defineNuxtModule<ModuleOptions>({
     addPlugin(resolveRuntimeModule('plugins/auth-enrich.client'))
 
     addImportsDir(resolveRuntimeModule('composables'))
-    addComponentsDir({ path: resolveRuntimeModule('components') })
 
     // Session endpoint for ssr:false apps to fetch user claims client-side
     addServerHandler({
