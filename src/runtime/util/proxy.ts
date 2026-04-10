@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import { proxyRequest, getQuery, createError } from 'h3'
 import { buildProxyTarget, buildProxyHeaders } from './proxy-route'
+import { traceEnabled, trace } from './log'
 
 // Server-side proxy that forwards requests to backend services.
 // Unauthenticated requests get the server's default API key;
@@ -26,14 +27,16 @@ export async function proxyHandler (
   const headers = buildProxyHeaders(graphqlApikey, accessToken, requestApikey)
   const target = buildProxyTarget(proxyBase, pathOverride ?? event.path)
 
-  console.log('[tlv2-auth:debug] proxy —', {
-    target,
-    proxyBase,
-    path: pathOverride ?? event.path,
-    accessToken: accessToken || '(none)',
-    apikey: headers.apikey || '(none)',
-    allHeaders: headers
-  })
+  if (traceEnabled) {
+    trace('proxy —', JSON.stringify({
+      target,
+      proxyBase,
+      path: pathOverride ?? event.path,
+      accessToken: accessToken || '(none)',
+      apikey: headers.apikey || '(none)',
+      allHeaders: headers
+    }, null, 2))
+  }
 
   return proxyRequest(event, target, {
     fetchOptions: {

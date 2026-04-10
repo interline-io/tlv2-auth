@@ -2,6 +2,7 @@ import { defineEventHandler } from 'h3'
 import { useRuntimeConfig } from '#imports'
 import { enrichUserClaims } from '../../../util/enrich'
 import { useAuth0Session } from '../../useSession'
+import { traceEnabled, trace } from '../../../util/log'
 
 // Fetch roles from the GraphQL `me` endpoint. Returns null if the backend
 // is unreachable or returns an error — enrichment is best-effort since the
@@ -48,22 +49,32 @@ async function fetchMeData (proxyBase: string, headers: Record<string, string>) 
 // logged in. Used by the client-side auth plugin to populate user state,
 // especially when SSR is disabled (ssr: false).
 export default defineEventHandler(async (event) => {
-  console.log('[tlv2-auth:debug] session.get — handler invoked')
+  if (traceEnabled) {
+    trace('session.get — handler invoked')
+  }
   const auth = await useAuth0Session(event)
-  console.log('[tlv2-auth:debug] session.get — loggedIn:', auth.loggedIn, 'hasUser:', !!auth.user, 'hasToken:', !!auth.accessToken)
+  if (traceEnabled) {
+    trace('session.get — loggedIn:', auth.loggedIn, 'hasUser:', !!auth.user, 'hasToken:', !!auth.accessToken)
+  }
   if (!auth.loggedIn || !auth.user) {
-    console.log('[tlv2-auth:debug] session.get — not logged in, returning null')
+    if (traceEnabled) {
+      trace('session.get — not logged in, returning null')
+    }
     return null
   }
 
-  console.log('[tlv2-auth:debug] session.get — user claims:', JSON.stringify(auth.user, null, 2))
-  console.log('[tlv2-auth:debug] session.get — accessToken full value:', auth.accessToken)
+  if (traceEnabled) {
+    trace('session.get — user claims:', JSON.stringify(auth.user, null, 2))
+    trace('session.get — accessToken full value:', auth.accessToken)
+  }
 
   // Enrich with roles from GraphQL `me` endpoint if backend is configured
   const config = useRuntimeConfig(event)
   const proxyBase = config.tlv2?.proxyBase?.default
   if (!proxyBase) {
-    console.log('[tlv2-auth:debug] session.get — no proxyBase configured, returning user claims without enrichment')
+    if (traceEnabled) {
+      trace('session.get — no proxyBase configured, returning user claims without enrichment')
+    }
     return auth.user
   }
 
@@ -75,9 +86,13 @@ export default defineEventHandler(async (event) => {
     headers.apikey = config.tlv2.graphqlApikey
   }
 
-  console.log('[tlv2-auth:debug] session.get — calling fetchMeData with proxyBase:', proxyBase, 'headers:', JSON.stringify(headers))
+  if (traceEnabled) {
+    trace('session.get — calling fetchMeData with proxyBase:', proxyBase, 'headers:', JSON.stringify(headers))
+  }
 
   const meData = await fetchMeData(proxyBase, headers)
-  console.log('[tlv2-auth:debug] session.get — fetchMeData result:', JSON.stringify(meData, null, 2))
+  if (traceEnabled) {
+    trace('session.get — fetchMeData result:', JSON.stringify(meData, null, 2))
+  }
   return enrichUserClaims(auth.user, meData)
 })
