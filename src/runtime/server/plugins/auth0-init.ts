@@ -11,14 +11,17 @@ import { getRequestHeader } from 'h3'
 // that patches the auth0 config per-request — useful for branch/preview
 // deploys where the URL isn't known at build time (not CF-specific).
 export default defineNitroPlugin((nitroApp) => {
+  // Resolve once at startup: auth0 is disabled when the domain is a placeholder
+  // (doesn't contain a dot). Real Auth0 domains are always FQDNs.
+  const bootConfig = useRuntimeConfig()
+  const auth0Disabled = !bootConfig.auth0?.domain?.includes('.')
+
   nitroApp.hooks.hook('request', (event) => {
-    if (event.context.auth0ClientOptions) {
+    event.context.auth0Disabled = auth0Disabled
+    if (auth0Disabled || event.context.auth0ClientOptions) {
       return
     }
     const config = useRuntimeConfig(event)
-    if (!config.auth0?.domain) {
-      return
-    }
     let { appBaseUrl } = config.auth0
     // Trusts x-forwarded-proto and Host headers — only safe behind a
     // trusted edge proxy (Cloudflare, Vercel, etc.)

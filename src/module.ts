@@ -1,10 +1,10 @@
-import { defineNuxtModule, addPlugin, addServerPlugin, createResolver, addImportsDir, addServerHandler, installModule } from '@nuxt/kit'
+import { defineNuxtModule, addPlugin, addServerPlugin, createResolver, addImportsDir, addComponentsDir, addServerHandler, installModule } from '@nuxt/kit'
 import { defu } from 'defu'
 import { DEFAULT_AUTH_PREFIX, DEFAULT_PROXY_PREFIX } from './runtime/util/defaults'
 
 export interface ModuleOptions {
   /** Enable the API proxy. Default: false */
-  proxy?: boolean
+  proxyEnabled?: boolean
   proxyBase?: string | Record<string, string>
   requireLogin?: boolean
   loginGate?: boolean
@@ -38,7 +38,7 @@ export default defineNuxtModule<ModuleOptions>({
     }
   },
   defaults: {
-    proxy: false,
+    proxyEnabled: false,
     requireLogin: false,
     loginGate: false,
     authPrefix: DEFAULT_AUTH_PREFIX,
@@ -53,40 +53,59 @@ export default defineNuxtModule<ModuleOptions>({
     const proxyPrefix = normalizePrefix(options.proxyPrefix!)
 
     // Auth via auth0-nuxt (server-side sessions with HTTP-only cookies).
-    // Only installed when clientId is configured — auth0-nuxt hard fails without it.
-    // When installed, a server middleware populates event.context.auth0Session
-    // so that useAuth0Session() can read it without importing auth0 directly.
+    // Always installed at build time so auth0 credentials are purely a runtime
+    // concern (NUXT_AUTH0_* env vars). When credentials are absent at runtime
+    // (e.g. automated browser tests), the auth middleware no-ops and all users
+    // are treated as anonymous — the proxy and other features still work.
+    //
+    // auth0-nuxt's server plugin validates that domain/clientId/clientSecret/
+    // appBaseUrl/sessionSecret are non-empty at startup. When no clientId is
+    // provided, we seed all auth0 config with placeholders so the server can
+    // start without auth. This is all-or-nothing to avoid a partial state
+    // where some values are real and others are placeholders.
+    const { randomBytes } = await import('node:crypto')
     const auth0ClientId = process.env.NUXT_AUTH0_CLIENT_ID || nuxt.options.runtimeConfig.auth0?.clientId
-    if (auth0ClientId) {
-      // Generate an ephemeral session secret if not provided (useful for local dev)
-      if (!process.env.NUXT_AUTH0_SESSION_SECRET && !nuxt.options.runtimeConfig.auth0?.sessionSecret) {
-        const { randomBytes } = await import('node:crypto')
-        const secret = randomBytes(32).toString('hex')
+    if (!auth0ClientId) {
+      // No clientId — seed all auth0 config with placeholders so the server
+      // can start without auth credentials.
+      nuxt.options.runtimeConfig.auth0 = {
+        domain: 'disabled',
+        clientId: 'disabled',
+        clientSecret: 'disabled',
+        appBaseUrl: 'http://localhost:3000',
+        sessionSecret: randomBytes(32).toString('hex'),
+      } as any
+    } else if (!process.env.NUXT_AUTH0_SESSION_SECRET && !nuxt.options.runtimeConfig.auth0?.sessionSecret) {
+      if (nuxt.options.dev) {
+        // Dev only: generate an ephemeral session secret so devs don't need
+        // to set one locally (and won't be tempted to copy the prod value).
         nuxt.options.runtimeConfig.auth0 = nuxt.options.runtimeConfig.auth0 || {} as any
-        nuxt.options.runtimeConfig.auth0.sessionSecret = secret
+        nuxt.options.runtimeConfig.auth0.sessionSecret = randomBytes(32).toString('hex')
         console.warn('[tlv2-auth] No NUXT_AUTH0_SESSION_SECRET provided — using ephemeral secret (sessions won\'t survive restarts)')
       }
-      // Synchronous Nitro plugin that ensures auth0ClientOptions is set on
-      // each request. No-ops when auth0-nuxt's async plugin already ran.
-      // Required for Cloudflare Workers compatibility where async Nitro
-      // plugins don't complete before the first request.
-      nuxt.options.runtimeConfig.tlv2 = defu(nuxt.options.runtimeConfig.tlv2 as any, {
-        autoAppBaseUrl: options.autoAppBaseUrl,
-      })
-      addServerPlugin(resolveRuntimeModule('server/plugins/auth0-init'))
-      await installModule('@auth0/auth0-nuxt', {
-        routes: {
-          login: `${authPrefix}/login`,
-          logout: `${authPrefix}/logout`,
-          callback: `${authPrefix}/callback`,
-          backchannelLogout: `${authPrefix}/backchannel-logout`,
-        }
-      })
-      addServerHandler({
-        middleware: true,
-        handler: resolveRuntimeModule('server/middleware/auth0')
-      })
+      // In production, let auth0-nuxt's own validation crash with a clear error.
     }
+
+    nuxt.options.runtimeConfig.tlv2 = defu(nuxt.options.runtimeConfig.tlv2 as any, {
+      autoAppBaseUrl: options.autoAppBaseUrl,
+    })
+    // Synchronous Nitro plugin that ensures auth0ClientOptions is set on
+    // each request. No-ops when auth0-nuxt's async plugin already ran.
+    // Required for Cloudflare Workers compatibility where async Nitro
+    // plugins don't complete before the first request.
+    addServerPlugin(resolveRuntimeModule('server/plugins/auth0-init'))
+    await installModule('@auth0/auth0-nuxt', {
+      routes: {
+        login: `${authPrefix}/login`,
+        logout: `${authPrefix}/logout`,
+        callback: `${authPrefix}/callback`,
+        backchannelLogout: `${authPrefix}/backchannel-logout`,
+      }
+    })
+    addServerHandler({
+      middleware: true,
+      handler: resolveRuntimeModule('server/middleware/auth0')
+    })
 
     // Private runtime options (server-side only)
     Object.assign(nuxt.options.runtimeConfig, defu(nuxt.options.runtimeConfig, {
@@ -116,6 +135,7 @@ export default defineNuxtModule<ModuleOptions>({
     addPlugin(resolveRuntimeModule('plugins/auth-enrich.client'))
 
     addImportsDir(resolveRuntimeModule('composables'))
+    addComponentsDir({ path: resolveRuntimeModule('components') })
 
     // Session endpoint for ssr:false apps to fetch user claims client-side
     addServerHandler({
@@ -125,7 +145,7 @@ export default defineNuxtModule<ModuleOptions>({
     })
 
     // Proxy — only registered when explicitly enabled.
-    if (options.proxy) {
+    if (options.proxyEnabled) {
       addServerHandler({
         route: `${proxyPrefix}/**`,
         handler: resolveRuntimeModule('server/api/proxy')
