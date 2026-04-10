@@ -6,6 +6,10 @@ export default defineNuxtConfig({
 
   ssr: false,
 
+  tlv2Auth: {
+    proxyEnabled: true,
+  },
+
   runtimeConfig: {
     // auth0-nuxt (server-only) — maps from NUXT_AUTH0_*
     auth0: {

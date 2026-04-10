@@ -21,11 +21,15 @@ function anonymousSession (): SessionContext {
 export async function useAuth0Session (event: H3Event): Promise<SessionContext> {
   const session = event.context.auth0Session
   if (!session) {
+    console.log('[tlv2-auth:debug] useAuth0Session — no auth0Session in event context, returning anonymous')
     return anonymousSession()
   }
+  console.log('[tlv2-auth:debug] useAuth0Session — fetching access token for user:', session.user?.sub)
+  const accessToken = await session.getAccessToken()
+  console.log('[tlv2-auth:debug] useAuth0Session — accessToken length:', accessToken?.length, 'empty:', !accessToken)
   return {
     loggedIn: true,
     user: session.user,
-    accessToken: await session.getAccessToken()
+    accessToken
   }
 }

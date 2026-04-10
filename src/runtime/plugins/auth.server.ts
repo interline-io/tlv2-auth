@@ -38,7 +38,9 @@ const plugin: Plugin = defineNuxtPlugin((nuxtApp) => {
     const event = nuxtApp.ssrContext?.event
     if (event) {
       const auth = await useAuth0Session(event)
+      console.log('[tlv2-auth:debug] auth.server getAuthHeaders — loggedIn:', auth.loggedIn, 'tokenLength:', auth.accessToken?.length)
       if (auth.accessToken) {
+        console.log('[tlv2-auth:debug] auth.server getAuthHeaders — accessToken:', auth.accessToken)
         headers.Authorization = `Bearer ${auth.accessToken}`
       }
     }

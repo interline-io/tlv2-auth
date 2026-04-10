@@ -26,15 +26,14 @@ export async function proxyHandler (
   const headers = buildProxyHeaders(graphqlApikey, accessToken, requestApikey)
   const target = buildProxyTarget(proxyBase, pathOverride ?? event.path)
 
-  // Uncomment this for debugging proxy issues (e.g. CORS, auth headers, etc.)
-  // console.log('[tlv2-proxy]', {
-  //   target,
-  //   proxyBase,
-  //   path: pathOverride ?? event.path,
-  //   hasAccessToken: !!accessToken,
-  //   hasApikey: !!headers.apikey,
-  //   headers
-  // })
+  console.log('[tlv2-auth:debug] proxy —', {
+    target,
+    proxyBase,
+    path: pathOverride ?? event.path,
+    accessToken: accessToken || '(none)',
+    apikey: headers.apikey || '(none)',
+    allHeaders: headers
+  })
 
   return proxyRequest(event, target, {
     fetchOptions: {
