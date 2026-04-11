@@ -1,4 +1,4 @@
-import { defineNuxtModule, addPlugin, addServerPlugin, createResolver, addImportsDir, addServerHandler, installModule } from '@nuxt/kit'
+import { defineNuxtModule, addPlugin, addServerPlugin, createResolver, addImports, addServerHandler, installModule } from '@nuxt/kit'
 import { defu } from 'defu'
 import { DEFAULT_AUTH_PREFIX, DEFAULT_PROXY_PREFIX, AUTH0_PLACEHOLDER_DOMAIN } from './runtime/util/defaults'
 
@@ -64,11 +64,20 @@ export default defineNuxtModule<ModuleOptions>({
     // start without auth. This is all-or-nothing to avoid a partial state
     // where some values are real and others are placeholders.
     const { randomBytes } = await import('node:crypto')
+    // Register `audience` in the runtimeConfig schema so that consuming apps
+    // can set NUXT_AUTH0_AUDIENCE without a type error.  auth0-nuxt's module
+    // doesn't declare this key, but its server composable reads it from
+    // runtimeConfig.auth0.audience at runtime.
+    nuxt.options.runtimeConfig.auth0 = defu(nuxt.options.runtimeConfig.auth0 as any, {
+      audience: '',
+    }) as any
+
     const auth0ClientId = process.env.NUXT_AUTH0_CLIENT_ID || nuxt.options.runtimeConfig.auth0?.clientId
     if (!auth0ClientId) {
       // No clientId — seed all auth0 config with placeholders so the server
       // can start without auth credentials.
       nuxt.options.runtimeConfig.auth0 = {
+        ...nuxt.options.runtimeConfig.auth0,
         domain: AUTH0_PLACEHOLDER_DOMAIN,
         clientId: AUTH0_PLACEHOLDER_DOMAIN,
         clientSecret: AUTH0_PLACEHOLDER_DOMAIN,
@@ -134,7 +143,12 @@ export default defineNuxtModule<ModuleOptions>({
     addPlugin(resolveRuntimeModule('plugins/auth.server'))
     addPlugin(resolveRuntimeModule('plugins/auth-enrich.client'))
 
-    addImportsDir(resolveRuntimeModule('composables'))
+    addImports([
+      { name: 'useUser', from: resolveRuntimeModule('composables/useUser') },
+      { name: 'useLogin', from: resolveRuntimeModule('composables/useLogin') },
+      { name: 'useLogout', from: resolveRuntimeModule('composables/useLogout') },
+      { name: 'useApiEndpoint', from: resolveRuntimeModule('composables/useApiEndpoint') },
+    ])
 
     // Session endpoint for ssr:false apps to fetch user claims client-side
     addServerHandler({
