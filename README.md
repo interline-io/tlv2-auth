@@ -51,7 +51,12 @@ export default defineNuxtConfig({
 })
 ```
 
-Auth0 is always installed at build time — no credentials are needed during the build. When `NUXT_AUTH0_*` env vars are absent at runtime, auth is automatically disabled and all users are treated as anonymous. This is useful for local development and headless browser testing where the proxy is needed but authentication is not.
+Auth0 is always installed at build time. The build-time presence of `NUXT_AUTH0_CLIENT_ID` determines the mode:
+
+- **No-auth** (Playwright, local dev, CI rigs): `NUXT_AUTH0_CLIENT_ID` unset → placeholders baked in, auth disabled at runtime, all users anonymous.
+- **Live auth**: `NUXT_AUTH0_CLIENT_ID` set → real `NUXT_AUTH0_*` values read from env at runtime.
+
+If credentials are supplied **only at runtime**, `NUXT_AUTH0_CLIENT_ID` must still be set at build time (any non-empty value works). Otherwise, placeholders will be baked in and runtime env vars will be silently ignored.
 
 ## Module options
 
