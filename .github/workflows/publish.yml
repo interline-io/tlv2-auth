@@ -18,7 +18,9 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install pnpm
-        uses: pnpm/action-setup@08c4be7e2e672a47d11bd04269e27e5f3e8529cb # v6
+        uses: pnpm/action-setup@71c92474e7e4f5bca283fb17ef80fba9cdb2b4b1 # v6
+        with:
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -72,7 +74,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@71c92474e7e4f5bca283fb17ef80fba9cdb2b4b1 # v6
+        with:
+          version: 10
 
       - uses: actions/setup-node@v6
         with:
@@ -86,7 +90,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create release PR or publish
-        uses: changesets/action@v1
+        uses: changesets/action@e87c8ed249971350e47fab7515075f44eb134e5b # v1.7.0
         with:
           publish: pnpm release
           title: 'chore: version packages'
