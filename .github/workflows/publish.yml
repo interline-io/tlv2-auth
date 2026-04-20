@@ -17,6 +17,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      # Pinned to v5: see note in ci.yml.
+      # https://github.com/pnpm/action-setup/issues/227
+      # https://github.com/pnpm/action-setup/issues/225
       - name: Install pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
 
@@ -72,7 +75,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
 
       - uses: actions/setup-node@v6
         with:
@@ -86,7 +89,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create release PR or publish
-        uses: changesets/action@v1
+        uses: changesets/action@e87c8ed249971350e47fab7515075f44eb134e5b # v1.7.0
         with:
           publish: pnpm release
           title: 'chore: version packages'
