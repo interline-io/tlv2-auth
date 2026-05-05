@@ -7,6 +7,12 @@ export interface TlUser {
   name: string
   email: string
   roles: string[]
+  /**
+   * Opaque key-value map plumbed through from the backend's user context
+   * (e.g. tlserver's WithExternalData via the gatekeeper middleware).
+   * Schema is deployment-specific; consumers cast or parse as needed.
+   */
+  externalData: Record<string, unknown>
   hasRole: (v: string) => boolean
 }
 
@@ -29,6 +35,7 @@ export const useUser = (): TlUser => {
     name: auth0User.value?.name || auth0User.value?.tlv2_name || '',
     email: auth0User.value?.email || auth0User.value?.tlv2_email || '',
     roles: roles.value,
+    externalData: (auth0User.value?.tlv2_external_data || {}) as Record<string, unknown>,
     hasRole (v: string): boolean {
       return roles.value.includes(v)
     }

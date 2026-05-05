@@ -13,7 +13,7 @@ async function fetchMeData (proxyBase: string, headers: Record<string, string>) 
   const response = await fetch(`${proxyBase}/query`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: '{ me { id name email roles } }' })
+    body: JSON.stringify({ query: '{ me { id name email roles external_data } }' })
   }).catch((e: Error) => {
     console.warn('[tlv2-auth] /auth/session: GraphQL me query network error:', e.message)
     return null
