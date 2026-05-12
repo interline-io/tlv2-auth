@@ -17,7 +17,7 @@ jobs:
       # `packageManager` field, breaking v10-format lockfiles. See:
       #   https://github.com/pnpm/action-setup/issues/227
       #   https://github.com/pnpm/action-setup/issues/225
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
 
       - uses: actions/setup-node@v6
         with:
