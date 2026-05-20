@@ -25,6 +25,12 @@ export async function proxyHandler (
   const query = getQuery(event)
   const requestApikey = (query.apikey ? query.apikey.toString() : '') || event.headers.get('apikey') || ''
   const headers = buildProxyHeaders(graphqlApikey, accessToken, requestApikey)
+  // Never forward the browser session cookie to the backend API. It's
+  // irrelevant to the API, and the encrypted auth0-nuxt session cookie
+  // effectively duplicates the JWT we already attach. h3's mergeHeaders treats
+  // an empty string as an override (undefined would be ignored), so this
+  // replaces the forwarded Cookie rather than leaving it intact.
+  headers.cookie = ''
   const target = buildProxyTarget(proxyBase, pathOverride ?? event.path)
 
   if (traceEnabled) {
