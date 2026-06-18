@@ -67,8 +67,12 @@ const plugin: Plugin = defineNuxtPlugin((nuxtApp) => {
       if (!isBackendRequest(effectiveUrl)) { return }
       const authHeaders = await getAuthHeaders()
       const headers = new Headers(options.headers || {})
+      // set() not append(): a request may already carry Authorization/apikey
+      // (e.g. the server-side proxy pre-authenticates its outbound request).
+      // append() would comma-join into "Bearer <tok>, Bearer <tok>", which the
+      // backend parses as a malformed JWT and rejects with 401.
       for (const [key, value] of Object.entries(authHeaders)) {
-        headers.append(key, value)
+        headers.set(key, value)
       }
       options.headers = headers
     }
@@ -84,8 +88,12 @@ const plugin: Plugin = defineNuxtPlugin((nuxtApp) => {
     const authHeaders = await getAuthHeaders()
     init = init || {}
     const headers = new Headers(init.headers || {})
+    // set() not append(): the request may already carry Authorization/apikey
+    // (the server-side proxy pre-authenticates its outbound request, which
+    // flows through this override). append() would comma-join into
+    // "Bearer <tok>, Bearer <tok>", which the backend rejects as a malformed JWT.
     for (const [key, value] of Object.entries(authHeaders)) {
-      headers.append(key, value)
+      headers.set(key, value)
     }
     init.headers = headers
     return originalFetch(input, init)
