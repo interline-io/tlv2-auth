@@ -123,15 +123,16 @@ pnpm lint             # ESLint
 
 Copy `playground/.env.example` to `playground/.env` and fill in your Auth0 and API credentials to test the full login flow.
 
-## Release workflow
+## Publishing
 
-Changesets drives versioning and publishing:
+There is no semver and no changesets. Every push publishes a `0.0.0`-based build to GitHub Packages; consumers pin the exact (immutable) string.
 
-1. PRs include a `.changeset/*.md` file (created by `pnpm changeset`)
-2. On merge to `main`, the `@changesets/action` bot opens or updates a **"Version Packages"** PR that bumps versions and generates CHANGELOGs
-3. Merging the Version Packages PR triggers publish to GitHub Packages
+- `main` → `@interline-io/tlv2-auth@0.0.0-main.<sha>` (dist-tag `latest`)
+- any branch → `@interline-io/tlv2-auth@0.0.0-branch.<branch>.<sha>` (dist-tag `<branch>`)
 
-Every push to `main` also publishes a SHA pre-release (`0.0.0-sha.<sha>`) for internal testing.
+The `0.0.0` base keeps builds sorting below any older real release; the `main`/`branch` prefix makes main builds vs branch previews obvious.
+
+Because the version *is* a commit SHA, the changelog between two builds is the PR range `https://github.com/interline-io/tlv2-auth/compare/<oldsha>...<newsha>` — there is no changelog file. Write detailed, self-contained PR descriptions so they serve as that record; review the PRs in the range (and any breaking changes) before bumping a consuming app's pin.
 
 ## Dependencies
 

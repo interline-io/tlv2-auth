@@ -17,32 +17,21 @@ pnpm check            # Lint + typecheck (must pass before task is complete)
 
 Always run `pnpm check` (lint + typecheck) before considering any task complete. Do not skip this step. If it fails, fix the errors before finishing.
 
-## Making changes
+## Publishing
 
-Always add a changeset when modifying the package:
+There is no semver and no changesets. Every push publishes a `0.0.0`-based build to GitHub Packages; consumers pin the exact (immutable) string.
 
-```bash
-pnpm changeset        # Describe the change and choose semver bump (patch/minor/major)
-```
+- `main` → `@interline-io/tlv2-auth@0.0.0-main.<sha>` (dist-tag `latest`)
+- any branch → `@interline-io/tlv2-auth@0.0.0-branch.<branch>.<sha>` (dist-tag `<branch>`)
 
-This creates a file in `.changeset/` that should be committed with your PR. Without it, your change won't trigger a version bump or CHANGELOG entry.
-
-## Release workflow
-
-Changesets drives versioning and publishing:
-
-1. PRs include a `.changeset/*.md` file (created by `pnpm changeset`)
-2. On merge to `main`, the `@changesets/action` bot opens or updates a **"Version Packages"** PR that bumps versions and generates CHANGELOGs
-3. Merging the Version Packages PR triggers publish to GitHub Packages
-
-Every push to `main` also publishes a SHA pre-release (`0.0.0-sha.<sha>`) for internal testing.
+The version string only records where a build came from — there are no version bumps, no bot PR, and no changelog file. Because the version *is* a commit SHA, the changelog between two builds is the PR range `compare/<oldsha>...<newsha>`, so write detailed, self-contained PR descriptions.
 
 ## Architecture
 
 - `src/module.ts` — Nuxt module entry point
 - `src/runtime/` — composables, plugins, server routes, and utilities
 - `playground/` — dev environment for testing the auth module (pnpm workspace package)
-- `.changeset/config.json` — changesets config (`access: "public"` for GitHub Packages)
+- `.github/workflows/publish.yml` — publishes `0.0.0`-based builds on every push
 
 ## Package manager
 
