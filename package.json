@@ -1,6 +1,6 @@
 {
   "name": "@interline-io/tlv2-auth",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "repository": "https://github.com/interline-io/tlv2-auth",
   "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
@@ -27,10 +27,7 @@
     "lint": "eslint .",
     "check": "pnpm lint --fix && pnpm nuxt typecheck",
     "test": "vitest run",
-    "test:watch": "vitest watch",
-    "changeset": "changeset",
-    "version-packages": "changeset version",
-    "release": "pnpm dev:prepare && pnpm build && changeset publish"
+    "test:watch": "vitest watch"
   },
   "peerDependencies": {
     "h3": "^1.0.0",
@@ -42,8 +39,6 @@
     "defu": "^6.1.4"
   },
   "devDependencies": {
-    "@changesets/changelog-github": "^0.6.0",
-    "@changesets/cli": "^2.30.0",
     "@nuxt/eslint": "1.10.0",
     "@nuxt/eslint-config": "1.10.0",
     "@nuxt/kit": "^4.2.0",
