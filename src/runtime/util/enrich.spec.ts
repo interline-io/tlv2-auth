@@ -20,8 +20,26 @@ describe('enrichUserClaims', () => {
       tlv2_id: 'gql-42',
       tlv2_name: 'Alice B',
       tlv2_email: 'alice@work.com',
-      tlv2_roles: ['admin', 'editor']
+      tlv2_roles: ['admin', 'editor'],
+      tlv2_external_data: {}
     })
+  })
+
+  it('passes through external_data verbatim', () => {
+    const externalData = {
+      gatekeeper: '{"id":1,"active_orders":[]}',
+      amberflo: { customer_id: 'production-1' }
+    }
+    const result = enrichUserClaims(baseUser, {
+      id: 'gql-42',
+      external_data: externalData
+    })
+    expect(result.tlv2_external_data).toEqual(externalData)
+  })
+
+  it('defaults missing external_data to empty object', () => {
+    const result = enrichUserClaims(baseUser, { id: '1' })
+    expect(result.tlv2_external_data).toEqual({})
   })
 
   it('defaults missing meData fields to empty values', () => {
@@ -30,6 +48,7 @@ describe('enrichUserClaims', () => {
     expect(result.tlv2_name).toBe('')
     expect(result.tlv2_email).toBe('')
     expect(result.tlv2_roles).toEqual([])
+    expect(result.tlv2_external_data).toEqual({})
   })
 
   it('defaults undefined roles to empty array', () => {
