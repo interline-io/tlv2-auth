@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "@auth0/auth0-nuxt": "^1.0.1",
-    "defu": "6.1.5"
+    "defu": "^6.1.5"
   },
   "devDependencies": {
     "@nuxt/eslint": "1.10.0",
