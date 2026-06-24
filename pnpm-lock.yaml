@@ -40,13 +40,13 @@ importers:
         specifier: 1.10.0
         version: 1.10.0(@typescript-eslint/utils@8.57.2(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(@vue/compiler-sfc@3.5.38)(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
       '@nuxt/kit':
-        specifier: 4.4.7
+        specifier: ^4.4.0
         version: 4.4.7(magicast@0.5.2)
       '@nuxt/module-builder':
         specifier: 1.0.2
         version: 1.0.2(@nuxt/cli@3.36.0(@nuxt/schema@4.4.7)(cac@6.7.14)(magicast@0.5.2))(@vue/compiler-core@3.5.38)(esbuild@0.28.1)(typescript@5.9.3)(vue-tsc@3.2.6(typescript@5.9.3))(vue@3.5.22(typescript@5.9.3))
       '@nuxt/schema':
-        specifier: 4.4.7
+        specifier: ^4.4.0
         version: 4.4.7
       '@stylistic/eslint-plugin':
         specifier: 5.5.0
@@ -64,7 +64,7 @@ importers:
         specifier: 3.30.0
         version: 3.30.0
       nuxt:
-        specifier: 4.4.7
+        specifier: ^4.4.0
         version: 4.4.7(@babel/plugin-syntax-jsx@7.28.6(@babel/core@8.0.1))(@babel/plugin-syntax-typescript@7.28.6(@babel/core@8.0.1))(@parcel/watcher@2.5.6)(@types/node@25.5.2)(@vue/compiler-sfc@3.5.38)(cac@6.7.14)(db0@0.3.4)(eslint@9.39.4(jiti@2.7.0))(ioredis@5.10.1)(magicast@0.5.2)(optionator@0.9.4)(rollup-plugin-visualizer@7.0.1(rollup@4.60.0))(rollup@4.60.0)(terser@5.46.1)(tsx@4.20.6)(typescript@5.9.3)(vite@7.3.5(@types/node@25.5.2)(jiti@2.7.0)(terser@5.46.1)(tsx@4.20.6)(yaml@2.9.0))(vue-tsc@3.2.6(typescript@5.9.3))(yaml@2.9.0)
       tsx:
         specifier: 4.20.6
@@ -3024,10 +3024,6 @@ packages:
 
   giget@2.0.0:
     resolution: {integrity: sha512-L5bGsVkxJbJgdnwyuheIunkGatUF/zssUoxxjACCseZYAVbaqdh9Tsmmlkl8vYan09H7sbvKt4pS8GqKLBrEzA==}
-    hasBin: true
-
-  giget@3.2.0:
-    resolution: {integrity: sha512-GvHTWcykIR/fP8cj8dMpuMMkvaeJfPvYnhq0oW+chSeIr+ldX21ifU2Ms6KBoyKZQZmVaUAAhQ2EZ68KJF8a7A==}
     hasBin: true
 
   giget@3.3.0:
@@ -7715,7 +7711,7 @@ snapshots:
       defu: 6.1.7
       dotenv: 17.3.1
       exsolve: 1.0.8
-      giget: 3.2.0
+      giget: 3.3.0
       jiti: 2.7.0
       ohash: 2.0.11
       pathe: 2.0.3
@@ -8481,8 +8477,6 @@ snapshots:
       node-fetch-native: 1.6.7
       nypm: 0.6.5
       pathe: 2.0.3
-
-  giget@3.2.0: {}
 
   giget@3.3.0: {}
 
