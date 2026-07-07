@@ -1,48 +1,43 @@
 import { defineEventHandler, createError } from 'h3'
-import { useRuntimeConfig } from '#imports'
 import { proxyHandler } from '../../util/proxy'
-import { parseProxyRoute, resolveProxyBase } from '../../util/proxy-route'
-import { DEFAULT_PROXY_PREFIX } from '../../util/defaults'
+import { matchProxyBackend } from '../proxy-registry'
 import { useAuth0Session } from '../useSession'
 
-// Unauthenticated requests get the server's default API key injected.
-// Authenticated requests additionally get their JWT attached.
-// When requireLogin is enabled, unauthenticated requests are rejected.
+// Dispatches a proxy request to a consumer-registered backend (see
+// defineProxyBackend). Each backend declares its own auth policy: whether an
+// apikey is injected as a fallback identity, and whether a missing/expired user
+// token fails closed instead of degrading to that fallback.
 export default defineEventHandler(async (event) => {
-  const config = useRuntimeConfig(event)
-
-  const proxyPrefix = config.public?.tlv2?.proxyPrefix || DEFAULT_PROXY_PREFIX
-  const parsed = parseProxyRoute(event.path || '', proxyPrefix)
-  if (!parsed) {
-    throw createError({
-      statusCode: 400,
-      message: '[tlv2-proxy] Invalid proxy path'
-    })
-  }
-  const { backendName, strippedPath } = parsed
-
-  const proxyBases: Record<string, string> = config.tlv2?.proxyBase || {}
-  const proxyBase = resolveProxyBase(backendName, proxyBases)
-  if (!proxyBase) {
+  const matched = matchProxyBackend(event.path || '')
+  if (!matched) {
     throw createError({
       statusCode: 404,
-      message: `[tlv2-proxy] Unknown backend: ${backendName}`
+      message: '[tlv2-proxy] No proxy backend registered for this path'
     })
   }
+  const { backend, strippedPath } = matched
 
   const auth = await useAuth0Session(event)
 
-  if (!auth.loggedIn && config.public?.tlv2?.requireLogin) {
+  if ((backend.requireLogin || backend.requireToken) && !auth.loggedIn) {
     throw createError({
       statusCode: 401,
       message: '[tlv2-proxy] Authentication required'
     })
   }
+  if (backend.requireToken && !auth.accessToken) {
+    // Logged in but no valid access token — the degraded window. Fail closed
+    // rather than fall back to the backend's apikey identity.
+    throw createError({
+      statusCode: 401,
+      message: '[tlv2-proxy] Session degraded; re-authentication required'
+    })
+  }
 
   return proxyHandler(
     event,
-    proxyBase,
-    config.tlv2?.graphqlApikey || '',
+    backend.proxyBase,
+    backend.apikey || '',
     auth.accessToken,
     strippedPath
   )

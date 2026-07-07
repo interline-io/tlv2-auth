@@ -1,40 +1,9 @@
-// Pure functions for proxy route parsing — no framework dependencies.
-
-const prefixReCache = new Map<string, RegExp>()
-function getPrefixRe (prefix: string): RegExp {
-  let re = prefixReCache.get(prefix)
-  if (!re) {
-    const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    re = new RegExp(`^${escaped}/([^/]+)`)
-    prefixReCache.set(prefix, re)
-  }
-  return re
-}
-
-// Extract backend name from proxy path: /{prefix}/{backend}/...
-// The prefix defaults to '/proxy' but is configurable via module options.
-// Returns null if the path doesn't match the expected pattern.
-export function parseProxyRoute (path: string, prefix: string = '/proxy'): { backendName: string, strippedPath: string } | null {
-  const re = getPrefixRe(prefix)
-  const match = path.match(re)
-  if (!match) {
-    return null
-  }
-  const backendName = match[1]!
-  const strippedPath = path.replace(re, '') || '/'
-  return { backendName, strippedPath }
-}
-
-// Resolve the backend name to a proxyBase URL, or null if unknown.
-export function resolveProxyBase (
-  backendName: string,
-  proxyBases: Record<string, string>
-): string | null {
-  return proxyBases[backendName] || null
-}
+// Pure functions for building proxied requests — no framework dependencies.
+// Request-path → backend resolution now lives in ../server/proxy-registry.
 
 // Build the target URL from proxyBase and the stripped request path.
-// Throws if the resolved path escapes the proxyBase pathname (path traversal).
+// Throws if the resolved path escapes the proxyBase origin (SSRF) or pathname
+// (path traversal).
 export function buildProxyTarget (proxyBase: string, requestPath: string): string {
   const proxyBaseUrl = new URL(proxyBase)
   const proxyBasePathname = proxyBaseUrl.pathname === '/' ? '' : proxyBaseUrl.pathname
@@ -49,14 +18,17 @@ export function buildProxyTarget (proxyBase: string, requestPath: string): strin
   return resolved.toString()
 }
 
-// Build auth headers for the proxied request.
+// Build auth headers for the proxied request. A request-provided apikey
+// (?apikey= / apikey header) takes precedence over the backend's configured
+// key; when neither is present no apikey header is sent, so a backend without a
+// key fails closed rather than borrowing a shared identity.
 export function buildProxyHeaders (
-  graphqlApikey: string,
+  backendApikey?: string,
   accessToken?: string,
   requestApikey?: string
 ): Record<string, string> {
   const headers: Record<string, string> = {}
-  const apikey = requestApikey || graphqlApikey
+  const apikey = requestApikey || backendApikey
   if (apikey) {
     headers.apikey = apikey
   }

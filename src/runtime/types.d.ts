@@ -15,6 +15,8 @@ declare module 'nuxt/schema' {
     }
     tlv2: {
       graphqlApikey: string
+      identityApikey: string
+      identityBase: string
       proxyBase: Record<string, string>
       autoAppBaseUrl: boolean
     }

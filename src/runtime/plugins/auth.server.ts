@@ -9,32 +9,29 @@ import { traceEnabled, trace } from '../util/log'
 // original request. This covers both ofetch ($fetch/useFetch) and native
 // fetch (used by Apollo's createUploadLink).
 //
-// Only injects headers on requests to configured proxyBase origins to avoid
-// leaking credentials to third-party services.
+// Injection targets only the identity backend origin — the one backend the SSR
+// path fetches (privileged backends are client-rendered). This deliberately
+// does NOT inject the identity apikey toward other backend origins, so a
+// strict backend can't be handed a shared fallback identity during SSR.
 const plugin: Plugin = defineNuxtPlugin((nuxtApp) => {
   const config = useRuntimeConfig()
-  const graphqlApikey = config.tlv2?.graphqlApikey || ''
+  const identityApikey = config.tlv2?.identityApikey || config.tlv2?.graphqlApikey || ''
+  const identityBase = config.tlv2?.identityBase || config.tlv2?.proxyBase?.default || ''
 
-  // Collect all configured backend origins
-  const proxyBases: Record<string, string> = config.tlv2?.proxyBase || {}
-  const allowedOrigins = Object.values(proxyBases)
-    .filter(Boolean)
-    .map((base) => {
-      const s = String(base)
-      if (!s.startsWith('http://') && !s.startsWith('https://')) { return '' }
-      return new URL(s).origin
-    })
-    .filter(Boolean)
+  const identityOrigin = (identityBase.startsWith('http://') || identityBase.startsWith('https://'))
+    ? new URL(identityBase).origin
+    : ''
 
   function isBackendRequest (url: string): boolean {
+    if (!identityOrigin) { return false }
     if (!url.startsWith('http://') && !url.startsWith('https://')) { return false }
-    return allowedOrigins.includes(new URL(url).origin)
+    return new URL(url).origin === identityOrigin
   }
 
   async function getAuthHeaders (): Promise<Record<string, string>> {
     const headers: Record<string, string> = {}
-    if (graphqlApikey) {
-      headers.apikey = graphqlApikey
+    if (identityApikey) {
+      headers.apikey = identityApikey
     }
     const event = nuxtApp.ssrContext?.event
     if (event) {

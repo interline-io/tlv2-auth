@@ -116,10 +116,21 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolveRuntimeModule('server/middleware/auth0')
     })
 
-    // Private runtime options (server-side only)
+    // Private runtime options (server-side only).
+    //
+    // proxyBase is retained as the SSR base-URL directory read by
+    // useApiEndpoint's server branch; the proxy dispatcher itself now resolves
+    // backends from the consumer-registered proxy registry (defineProxyBackend),
+    // not from here.
+    //
+    // identityBase / identityApikey are the auth module's own upstream for `me`
+    // role enrichment and SSR credential injection, independent of the proxy
+    // registry. They fall back to proxyBase.default / graphqlApikey when unset.
     Object.assign(nuxt.options.runtimeConfig, defu(nuxt.options.runtimeConfig, {
       tlv2: {
         graphqlApikey: '',
+        identityApikey: '',
+        identityBase: '',
         proxyBase: typeof options.proxyBase === 'string'
           ? { default: options.proxyBase }
           : (options.proxyBase || {}),
