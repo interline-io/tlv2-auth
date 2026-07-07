@@ -1,7 +1,6 @@
 import type { Plugin } from '#app'
 import { defineNuxtPlugin, useRuntimeConfig } from '#imports'
 import { useAuth0Session } from '../server/useSession'
-import { resolveIdentityBackend } from '../util/identity'
 import { traceEnabled, trace } from '../util/log'
 
 // Server-side auth header injection for SSR requests.
@@ -10,28 +9,32 @@ import { traceEnabled, trace } from '../util/log'
 // original request. This covers both ofetch ($fetch/useFetch) and native
 // fetch (used by Apollo's createUploadLink).
 //
-// Injection targets only the identity backend origin — the one backend the SSR
-// path fetches (privileged backends are client-rendered). This deliberately
-// does NOT inject the identity apikey toward other backend origins, so a
-// strict backend can't be handed a shared fallback identity during SSR.
+// Only injects headers on requests to configured proxyBase origins to avoid
+// leaking credentials to third-party services.
 const plugin: Plugin = defineNuxtPlugin((nuxtApp) => {
   const config = useRuntimeConfig()
-  const { base: identityBase, apikey: identityApikey } = resolveIdentityBackend(config.tlv2)
+  const graphqlApikey = config.tlv2?.graphqlApikey || ''
 
-  const identityOrigin = (identityBase.startsWith('http://') || identityBase.startsWith('https://'))
-    ? new URL(identityBase).origin
-    : ''
+  // Collect all configured backend origins
+  const proxyBases: Record<string, string> = config.tlv2?.proxyBase || {}
+  const allowedOrigins = Object.values(proxyBases)
+    .filter(Boolean)
+    .map((base) => {
+      const s = String(base)
+      if (!s.startsWith('http://') && !s.startsWith('https://')) { return '' }
+      return new URL(s).origin
+    })
+    .filter(Boolean)
 
   function isBackendRequest (url: string): boolean {
-    if (!identityOrigin) { return false }
     if (!url.startsWith('http://') && !url.startsWith('https://')) { return false }
-    return new URL(url).origin === identityOrigin
+    return allowedOrigins.includes(new URL(url).origin)
   }
 
   async function getAuthHeaders (): Promise<Record<string, string>> {
     const headers: Record<string, string> = {}
-    if (identityApikey) {
-      headers.apikey = identityApikey
+    if (graphqlApikey) {
+      headers.apikey = graphqlApikey
     }
     const event = nuxtApp.ssrContext?.event
     if (event) {

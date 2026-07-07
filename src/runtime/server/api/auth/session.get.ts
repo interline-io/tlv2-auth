@@ -1,7 +1,6 @@
 import { defineEventHandler } from 'h3'
 import { useRuntimeConfig } from '#imports'
 import { enrichUserClaims } from '../../../util/enrich'
-import { resolveIdentityBackend } from '../../../util/identity'
 import { useAuth0Session } from '../../useSession'
 import { traceEnabled, trace, traceUserClaims } from '../../../util/log'
 
@@ -66,13 +65,12 @@ export default defineEventHandler(async (event) => {
 
   traceUserClaims('session.get — user claims:', auth.user)
 
-  // Enrich with roles from the GraphQL `me` endpoint on the identity backend
-  // (resolveIdentityBackend) — independent of the consumer-owned proxy registry.
+  // Enrich with roles from GraphQL `me` endpoint if backend is configured
   const config = useRuntimeConfig(event)
-  const { base: identityBase, apikey: identityApikey } = resolveIdentityBackend(config.tlv2)
-  if (!identityBase) {
+  const proxyBase = config.tlv2?.proxyBase?.default
+  if (!proxyBase) {
     if (traceEnabled) {
-      trace('session.get — no identity backend configured, returning user claims without enrichment')
+      trace('session.get — no proxyBase configured, returning user claims without enrichment')
     }
     return auth.user
   }
@@ -81,15 +79,15 @@ export default defineEventHandler(async (event) => {
   if (auth.accessToken) {
     headers.Authorization = `Bearer ${auth.accessToken}`
   }
-  if (identityApikey) {
-    headers.apikey = identityApikey
+  if (config.tlv2?.graphqlApikey) {
+    headers.apikey = config.tlv2.graphqlApikey
   }
 
   if (traceEnabled) {
-    trace('session.get — calling fetchMeData with identityBase:', identityBase, 'hasToken:', !!auth.accessToken, 'hasApikey:', !!headers.apikey)
+    trace('session.get — calling fetchMeData with proxyBase:', proxyBase, 'hasToken:', !!auth.accessToken, 'hasApikey:', !!headers.apikey)
   }
 
-  const meData = await fetchMeData(identityBase, headers)
+  const meData = await fetchMeData(proxyBase, headers)
   if (traceEnabled) {
     trace('session.get — fetchMeData result:', meData)
   }
