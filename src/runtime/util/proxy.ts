@@ -14,7 +14,8 @@ export async function proxyHandler (
   proxyBase: string,
   backendApikey: string,
   accessToken?: string,
-  pathOverride?: string
+  pathOverride?: string,
+  apikeyWithToken?: boolean
 ) {
   if (!proxyBase) {
     throw createError({
@@ -25,7 +26,7 @@ export async function proxyHandler (
 
   const query = getQuery(event)
   const requestApikey = (query.apikey ? query.apikey.toString() : '') || event.headers.get('apikey') || ''
-  const headers = buildProxyHeaders(backendApikey, accessToken, requestApikey)
+  const headers = buildProxyHeaders(backendApikey, accessToken, requestApikey, apikeyWithToken)
   // Never forward the browser session cookie to the backend API. It's
   // irrelevant to the API, and the encrypted auth0-nuxt session cookie
   // effectively duplicates the JWT we already attach. h3's mergeHeaders treats

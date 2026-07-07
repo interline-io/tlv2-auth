@@ -39,6 +39,7 @@ export default defineEventHandler(async (event) => {
     backend.proxyBase,
     backend.apikey || '',
     auth.accessToken,
-    strippedPath
+    strippedPath,
+    backend.apikeyWithToken
   )
 })

@@ -70,12 +70,9 @@ describe('buildProxyHeaders', () => {
     expect(headers).toEqual({ apikey: 'my-api-key' })
   })
 
-  it('includes authorization when accessToken provided', () => {
+  it('sends only the token, dropping the backend apikey, when a token is present', () => {
     const headers = buildProxyHeaders('my-api-key', 'jwt-token')
-    expect(headers).toEqual({
-      apikey: 'my-api-key',
-      authorization: 'Bearer jwt-token'
-    })
+    expect(headers).toEqual({ authorization: 'Bearer jwt-token' })
   })
 
   it('omits authorization when accessToken is empty', () => {
@@ -93,10 +90,15 @@ describe('buildProxyHeaders', () => {
     expect(headers).toEqual({ apikey: 'server-key' })
   })
 
-  it('includes all headers when everything is provided', () => {
+  it('token wins over every apikey source when all are provided', () => {
     const headers = buildProxyHeaders('server-key', 'jwt-token', 'user-key')
+    expect(headers).toEqual({ authorization: 'Bearer jwt-token' })
+  })
+
+  it('sends both when apikeyWithToken is set', () => {
+    const headers = buildProxyHeaders('my-api-key', 'jwt-token', undefined, true)
     expect(headers).toEqual({
-      apikey: 'user-key',
+      apikey: 'my-api-key',
       authorization: 'Bearer jwt-token'
     })
   })

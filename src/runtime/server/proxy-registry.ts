@@ -25,6 +25,14 @@ export interface ProxyBackend {
    */
   apikey?: string
   /**
+   * Also send the configured apikey when the request already carries a valid
+   * user token. Off by default — a token is exclusive, so the backend can't
+   * resolve the request to the shared apikey identity. Enable for a backend
+   * that needs the apikey for attribution (quota/rate-limit) alongside the
+   * user token.
+   */
+  apikeyWithToken?: boolean
+  /**
    * Reject with 401 unless the request has a logged-in session with a valid
    * access token. Use for privileged backends whose data must never be served
    * to a degraded (token-less) session.
