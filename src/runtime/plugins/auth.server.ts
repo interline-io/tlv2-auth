@@ -1,6 +1,7 @@
 import type { Plugin } from '#app'
 import { defineNuxtPlugin, useRuntimeConfig } from '#imports'
 import { useAuth0Session } from '../server/useSession'
+import { resolveIdentityBackend } from '../util/identity'
 import { traceEnabled, trace } from '../util/log'
 
 // Server-side auth header injection for SSR requests.
@@ -15,8 +16,7 @@ import { traceEnabled, trace } from '../util/log'
 // strict backend can't be handed a shared fallback identity during SSR.
 const plugin: Plugin = defineNuxtPlugin((nuxtApp) => {
   const config = useRuntimeConfig()
-  const identityApikey = config.tlv2?.identityApikey || config.tlv2?.graphqlApikey || ''
-  const identityBase = config.tlv2?.identityBase || config.tlv2?.proxyBase?.default || ''
+  const { base: identityBase, apikey: identityApikey } = resolveIdentityBackend(config.tlv2)
 
   const identityOrigin = (identityBase.startsWith('http://') || identityBase.startsWith('https://'))
     ? new URL(identityBase).origin

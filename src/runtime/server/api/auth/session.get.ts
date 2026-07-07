@@ -1,6 +1,7 @@
 import { defineEventHandler } from 'h3'
 import { useRuntimeConfig } from '#imports'
 import { enrichUserClaims } from '../../../util/enrich'
+import { resolveIdentityBackend } from '../../../util/identity'
 import { useAuth0Session } from '../../useSession'
 import { traceEnabled, trace, traceUserClaims } from '../../../util/log'
 
@@ -65,13 +66,10 @@ export default defineEventHandler(async (event) => {
 
   traceUserClaims('session.get — user claims:', auth.user)
 
-  // Enrich with roles from the GraphQL `me` endpoint on the identity backend —
-  // the auth module's own upstream for resolving roles, independent of the
-  // consumer-owned proxy registry. Falls back to the legacy default proxy
-  // backend / graphqlApikey when the identity config isn't set.
+  // Enrich with roles from the GraphQL `me` endpoint on the identity backend
+  // (resolveIdentityBackend) — independent of the consumer-owned proxy registry.
   const config = useRuntimeConfig(event)
-  const identityBase = config.tlv2?.identityBase || config.tlv2?.proxyBase?.default
-  const identityApikey = config.tlv2?.identityApikey || config.tlv2?.graphqlApikey
+  const { base: identityBase, apikey: identityApikey } = resolveIdentityBackend(config.tlv2)
   if (!identityBase) {
     if (traceEnabled) {
       trace('session.get — no identity backend configured, returning user claims without enrichment')

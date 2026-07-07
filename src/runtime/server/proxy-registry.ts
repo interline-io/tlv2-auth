@@ -81,11 +81,17 @@ export function matchProxyBackend (
   const qIndex = requestPath.indexOf('?')
   const pathname = qIndex === -1 ? requestPath : requestPath.slice(0, qIndex)
   const query = qIndex === -1 ? '' : requestPath.slice(qIndex)
-  for (const backend of listProxyBackends()) {
-    if (pathname === backend.path || pathname.startsWith(`${backend.path}/`)) {
-      const rest = pathname.slice(backend.path.length) || '/'
-      return { backend, strippedPath: rest + query }
+  // Single pass tracking the longest matching prefix — no per-request sort.
+  let best: ProxyBackend | null = null
+  for (const backend of store().values()) {
+    const matches = pathname === backend.path || pathname.startsWith(`${backend.path}/`)
+    if (matches && (!best || backend.path.length > best.path.length)) {
+      best = backend
     }
   }
-  return null
+  if (!best) {
+    return null
+  }
+  const rest = pathname.slice(best.path.length) || '/'
+  return { backend: best, strippedPath: rest + query }
 }
