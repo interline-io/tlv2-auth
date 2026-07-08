@@ -1,70 +1,28 @@
 import { describe, it, expect } from 'vitest'
-import { parseProxyRoute, resolveProxyBase, buildProxyTarget, buildProxyHeaders } from './proxy-route'
+import { parseProxyRoute, buildProxyTarget, buildProxyHeaders, stripApikeyParam } from './proxy-route'
 
 describe('parseProxyRoute', () => {
-  it('extracts backend name and strips prefix', () => {
-    expect(parseProxyRoute('/proxy/default/query')).toEqual({
-      backendName: 'default',
-      strippedPath: '/query'
-    })
+  it('parses name and stripped path', () => {
+    expect(parseProxyRoute('/proxy/stationEditor/query', '/proxy')).toEqual({ name: 'stationEditor', strippedPath: '/query' })
   })
-
-  it('handles stationEditor backend', () => {
-    expect(parseProxyRoute('/proxy/stationEditor/query')).toEqual({
-      backendName: 'stationEditor',
-      strippedPath: '/query'
-    })
+  it('defaults stripped path to "/" for a bare backend', () => {
+    expect(parseProxyRoute('/proxy/default', '/proxy')).toEqual({ name: 'default', strippedPath: '/' })
   })
-
-  it('handles nested paths', () => {
-    expect(parseProxyRoute('/proxy/feedManagement/admin/feeds/123')).toEqual({
-      backendName: 'feedManagement',
-      strippedPath: '/admin/feeds/123'
-    })
+  it('preserves the query string', () => {
+    expect(parseProxyRoute('/proxy/default/query?limit=10', '/proxy')).toEqual({ name: 'default', strippedPath: '/query?limit=10' })
   })
-
-  it('returns null for path without backend segment', () => {
-    expect(parseProxyRoute('/proxy/')).toBeNull()
+  it('preserves a query on a bare backend', () => {
+    expect(parseProxyRoute('/proxy/default?x=1', '/proxy')).toEqual({ name: 'default', strippedPath: '/?x=1' })
   })
-
-  it('defaults to "/" when no trailing path', () => {
-    expect(parseProxyRoute('/proxy/default')).toEqual({
-      backendName: 'default',
-      strippedPath: '/'
-    })
+  it('returns null for the bare prefix', () => {
+    expect(parseProxyRoute('/proxy', '/proxy')).toBeNull()
+    expect(parseProxyRoute('/proxy/', '/proxy')).toBeNull()
   })
-
-  it('returns null for empty path', () => {
-    expect(parseProxyRoute('')).toBeNull()
+  it('does not match a prefix that is only a substring boundary', () => {
+    expect(parseProxyRoute('/proxytest/foo', '/proxy')).toBeNull()
   })
-
-  it('supports custom prefix', () => {
-    expect(parseProxyRoute('/api/proxy/default/query', '/api/proxy')).toEqual({
-      backendName: 'default',
-      strippedPath: '/query'
-    })
-  })
-})
-
-describe('resolveProxyBase', () => {
-  const proxyBases = {
-    default: 'https://api.transit.land/api/v2',
-    stationEditor: 'https://station-api.example.com',
-    feedManagement: 'https://feed-api.example.com/v1'
-  }
-
-  it('resolves known backend', () => {
-    expect(resolveProxyBase('default', proxyBases)).toBe('https://api.transit.land/api/v2')
-    expect(resolveProxyBase('stationEditor', proxyBases)).toBe('https://station-api.example.com')
-    expect(resolveProxyBase('feedManagement', proxyBases)).toBe('https://feed-api.example.com/v1')
-  })
-
-  it('returns null for unknown backend', () => {
-    expect(resolveProxyBase('nonexistent', proxyBases)).toBeNull()
-  })
-
-  it('returns null for empty proxyBases', () => {
-    expect(resolveProxyBase('default', {})).toBeNull()
+  it('supports a custom prefix', () => {
+    expect(parseProxyRoute('/api/proxy/default/query', '/api/proxy')).toEqual({ name: 'default', strippedPath: '/query' })
   })
 })
 
@@ -137,12 +95,9 @@ describe('buildProxyHeaders', () => {
     expect(headers).toEqual({ apikey: 'my-api-key' })
   })
 
-  it('includes authorization when accessToken provided', () => {
+  it('sends only the token, dropping the backend apikey, when a token is present', () => {
     const headers = buildProxyHeaders('my-api-key', 'jwt-token')
-    expect(headers).toEqual({
-      apikey: 'my-api-key',
-      authorization: 'Bearer jwt-token'
-    })
+    expect(headers).toEqual({ authorization: 'Bearer jwt-token' })
   })
 
   it('omits authorization when accessToken is empty', () => {
@@ -150,20 +105,25 @@ describe('buildProxyHeaders', () => {
     expect(headers).toEqual({ apikey: 'my-api-key' })
   })
 
-  it('prefers requestApikey over graphqlApikey', () => {
+  it('prefers requestApikey over the backend key', () => {
     const headers = buildProxyHeaders('server-key', undefined, 'user-key')
     expect(headers).toEqual({ apikey: 'user-key' })
   })
 
-  it('falls back to graphqlApikey when no requestApikey', () => {
+  it('falls back to the backend key when no requestApikey', () => {
     const headers = buildProxyHeaders('server-key', undefined, '')
     expect(headers).toEqual({ apikey: 'server-key' })
   })
 
-  it('includes all headers when everything is provided', () => {
+  it('token wins over every apikey source when all are provided', () => {
     const headers = buildProxyHeaders('server-key', 'jwt-token', 'user-key')
+    expect(headers).toEqual({ authorization: 'Bearer jwt-token' })
+  })
+
+  it('sends both when apikeyWithToken is set', () => {
+    const headers = buildProxyHeaders('my-api-key', 'jwt-token', undefined, true)
     expect(headers).toEqual({
-      apikey: 'user-key',
+      apikey: 'my-api-key',
       authorization: 'Bearer jwt-token'
     })
   })
@@ -171,5 +131,20 @@ describe('buildProxyHeaders', () => {
   it('omits apikey header when both keys are empty', () => {
     const headers = buildProxyHeaders('', undefined, '')
     expect(headers).toEqual({})
+  })
+})
+
+describe('stripApikeyParam', () => {
+  it('returns the path unchanged when there is no query', () => {
+    expect(stripApikeyParam('/query')).toBe('/query')
+  })
+  it('returns the path unchanged when there is no apikey param', () => {
+    expect(stripApikeyParam('/query?limit=3')).toBe('/query?limit=3')
+  })
+  it('drops a lone apikey param, leaving no query', () => {
+    expect(stripApikeyParam('/query?apikey=secret')).toBe('/query')
+  })
+  it('drops apikey but keeps other params', () => {
+    expect(stripApikeyParam('/query?limit=3&apikey=secret')).toBe('/query?limit=3')
   })
 })
