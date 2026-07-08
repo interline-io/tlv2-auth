@@ -13,10 +13,12 @@ interface ProxyConfig {
 }
 
 // Resolve the configured proxy backends. TEMPORARY migration bridge: maps legacy
-// tlv2.proxyBase.<name> (+ tlv2.graphqlApikey for `default`) into any backend NOT
-// declared in tlv2proxy.backends — a declared backend is never merged into, so a
-// keyless default stays fail-closed. Gate on this resolved view, not raw
-// tlv2proxy.backends. Drop once consumers migrate.
+// tlv2.proxyBase.<name> into any backend NOT declared in tlv2proxy.backends, and
+// injects tlv2.graphqlApikey on each — reproducing main, which attached the single
+// shared key to every backend it proxied. A declared backend is never merged into,
+// so migrating one to fail-closed just means declaring it (keyless) in
+// tlv2proxy.backends. Gate on this resolved view, not raw tlv2proxy.backends.
+// Drop once consumers migrate.
 export function resolveProxyBackends (config: ProxyConfig): Record<string, ProxyBackendConfig> {
   const backends = { ...(config.tlv2proxy?.backends || {}) }
   const legacyApikey = config.tlv2?.graphqlApikey
@@ -24,7 +26,7 @@ export function resolveProxyBackends (config: ProxyConfig): Record<string, Proxy
     if (base && !backends[name]) {
       backends[name] = {
         base,
-        ...(name === 'default' && legacyApikey ? { apikey: legacyApikey } : {})
+        ...(legacyApikey ? { apikey: legacyApikey } : {})
       }
     }
   }

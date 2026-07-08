@@ -14,7 +14,7 @@ describe('resolveProxyBackends', () => {
     })).toEqual({ default: { base: 'https://legacy.example.com', apikey: 'legacy-key' } })
   })
 
-  it('maps ALL legacy proxyBase keys, not just default', () => {
+  it('maps ALL legacy proxyBase keys and injects the legacy apikey on each', () => {
     const r = resolveProxyBackends({
       tlv2: {
         graphqlApikey: 'legacy-key',
@@ -25,10 +25,11 @@ describe('resolveProxyBackends', () => {
         }
       }
     })
-    // Legacy apikey only applies to `default`; other backends get base only.
+    // main injected the single graphqlApikey on every backend it proxied; the
+    // bridge reproduces that. Fail-closed migration = declare the backend keyless.
     expect(r.default).toEqual({ base: 'https://legacy.example.com', apikey: 'legacy-key' })
-    expect(r.stationEditor).toEqual({ base: 'https://saas.example.com' })
-    expect(r.feedManagement).toEqual({ base: 'https://fm.example.com' })
+    expect(r.stationEditor).toEqual({ base: 'https://saas.example.com', apikey: 'legacy-key' })
+    expect(r.feedManagement).toEqual({ base: 'https://fm.example.com', apikey: 'legacy-key' })
   })
 
   it('does NOT re-arm a declared-but-keyless default when a legacy apikey lingers', () => {
