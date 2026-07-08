@@ -114,6 +114,12 @@ export default defineNuxtModule<ModuleOptions>({
         backchannelLogout: `${authPrefix}/backchannel-logout`,
       }
     })
+    // Redirect declined/failed auth0 callbacks (?error=...) home before
+    // auth0-nuxt's callback handler throws exchanging a missing code.
+    addServerHandler({
+      middleware: true,
+      handler: resolveRuntimeModule('server/middleware/auth-callback-error')
+    })
     addServerHandler({
       middleware: true,
       handler: resolveRuntimeModule('server/middleware/auth0')
@@ -159,6 +165,7 @@ export default defineNuxtModule<ModuleOptions>({
       { name: 'useUser', from: resolveRuntimeModule('composables/useUser') },
       { name: 'useLogin', from: resolveRuntimeModule('composables/useLogin') },
       { name: 'useLogout', from: resolveRuntimeModule('composables/useLogout') },
+      { name: 'useLogoutLocal', from: resolveRuntimeModule('composables/useLogoutLocal') },
       { name: 'useApiEndpoint', from: resolveRuntimeModule('composables/useApiEndpoint') },
       { name: 'useProxySsrFetch', from: resolveRuntimeModule('composables/useProxySsrFetch') },
     ])
@@ -168,6 +175,14 @@ export default defineNuxtModule<ModuleOptions>({
       route: `${authPrefix}/session`,
       method: 'get',
       handler: resolveRuntimeModule('server/api/auth/session.get')
+    })
+
+    // Local logout — clears the session cookie without the federated auth0
+    // round-trip, keeping the SSO session (used by the degraded-session fallback).
+    addServerHandler({
+      route: `${authPrefix}/logout-local`,
+      method: 'get',
+      handler: resolveRuntimeModule('server/api/auth/logout-local.get')
     })
 
     // Mount the proxy only when explicitly enabled — it injects server-side

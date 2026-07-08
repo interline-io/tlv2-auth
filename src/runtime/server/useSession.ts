@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3'
+import { getCookie, deleteCookie } from 'h3'
 import { traceEnabled, trace } from '../util/log'
 
 export interface SessionContext {
@@ -27,6 +28,26 @@ export async function useAuth0Session (event: H3Event): Promise<SessionContext> 
     }
     return anonymousSession()
   }
+
+  // Dev-only auth-state simulation for exercising the degraded-session recovery
+  // flow from the playground. Statically removed from production builds
+  // (import.meta.dev compiles to false → dead code). Only ever DOWNGRADES a real
+  // session — never fabricates a login — so it cannot grant access.
+  if (import.meta.dev) {
+    const sim = getCookie(event, 'tlv2_debug_auth')
+    if (sim === 'anonymous') {
+      return anonymousSession()
+    }
+    if (sim === 'degraded' || sim === 'degraded-once') {
+      // 'degraded-once' self-clears so the follow-up re-auth recovers cleanly;
+      // 'degraded' is sticky so the recovery-failed → logout path is observable.
+      if (sim === 'degraded-once') {
+        deleteCookie(event, 'tlv2_debug_auth')
+      }
+      return { loggedIn: true, user: session.user, accessToken: '' }
+    }
+  }
+
   if (traceEnabled) {
     trace('useAuth0Session — fetching access token for user:', session.user?.sub)
   }

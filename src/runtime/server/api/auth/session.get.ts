@@ -65,11 +65,13 @@ export default defineEventHandler(async (event) => {
 
   traceUserClaims('session.get — user claims:', auth.user)
 
-  // Degraded session (logged in, no access token): skip enrichment. A `me`
-  // fetched with only the apikey would resolve to the shared key's identity and
-  // stamp its roles onto this user's claims. Return the auth0 claims unchanged.
+  // Degraded session (logged in, no access token): skip enrichment and flag it.
+  // A `me` fetched with only the apikey would resolve to the shared key's
+  // identity and stamp its roles onto this user's claims, so return the auth0
+  // claims un-enriched. The `tlv2_degraded` marker lets the client attempt a
+  // one-shot re-auth (see auth-enrich.client).
   if (!auth.accessToken) {
-    return auth.user
+    return { ...auth.user, tlv2_degraded: true }
   }
 
   // Enrich with roles from the `default` backend's GraphQL `me` endpoint.

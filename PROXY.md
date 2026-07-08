@@ -69,12 +69,14 @@ single-word names to avoid the ambiguity.
 
 - A valid user token is **exclusive** — the request authenticates as that user
   and no apikey is attached (unless `apikeyWithToken`).
-- The `apikey` is the anonymous fallback: attached only when there's no token.
-- A **degraded** session (token expired, no refresh) is treated as no token: a
-  `requireToken` backend 401s cleanly rather than silently downgrading to the
-  apikey identity.
+- The `apikey` is the anonymous fallback: attached only when there's no token
+  **and** the caller was never logged in.
+- A **degraded** session (logged in, but token expired / refresh failed) never
+  borrows the apikey: it 401s on **any** backend, so a known user re-authenticates
+  rather than silently downgrading to the shared anonymous identity. Only a
+  genuinely anonymous caller gets the apikey fallback where a backend allows it.
 - Callers may still pass their own key via `?apikey=` or an `apikey` header on
-  token-less requests.
+  anonymous token-less requests.
 
 The `default` backend is special: it also serves the `/auth/session` `me`
 enrichment (roles) and is the target for SSR data fetches.
