@@ -5,7 +5,7 @@ Nuxt 4 module providing authentication and API proxying for Transitland v2 appli
 ## Features
 
 - Server-side Auth0 sessions (always bundled; gracefully disabled at runtime when credentials are absent)
-- Multi-backend API proxy at `/proxy/{backendName}/...` with per-backend URL configuration
+- Opt-in multi-backend API proxy: declare backends in `tlv2proxy.backends` (per-backend URL, apikey, and fail-closed policy)
 - SSR auth header injection for `$fetch` and `globalThis.fetch`
 - Session enrichment with roles from a GraphQL `me` endpoint
 - Composables: `useUser()`, `useLogin()`, `useLogout()`, `useApiEndpoint()`
@@ -35,10 +35,9 @@ export default defineNuxtConfig({
       appBaseUrl: '',
       audience: '',
     },
-    tlv2: {
-      graphqlApikey: '',
-      proxyBase: {
-        default: '',        // e.g. https://transit.land/api/v2
+    tlv2proxy: {
+      backends: {
+        default: { base: '', apikey: '' }, // e.g. base https://transit.land/api/v2
       },
     },
     public: {
@@ -68,12 +67,10 @@ modules: [['@interline-io/tlv2-auth', { autoAppBaseUrl: true }]]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `proxyEnabled` | `boolean` | `false` | Enable the API proxy |
-| `proxyBase` | `string \| Record<string, string>` | — | Backend URL(s) for the API proxy |
-| `requireLogin` | `boolean` | `false` | Redirect unauthenticated users to Auth0 login; also rejects unauthenticated proxy requests with 401 |
+| `requireLogin` | `boolean` | `false` | Redirect unauthenticated users to Auth0 login (client-side gate) |
 | `loginGate` | `boolean` | `false` | Show login UI gate |
 | `authPrefix` | `string` | `'/auth'` | URL prefix for auth routes (login, logout, session) |
-| `proxyPrefix` | `string` | `'/proxy'` | URL prefix for the proxy route |
+| `proxyPrefix` | `string` | `'/proxy'` | URL prefix the client builds proxy requests against, and where you mount your proxy route |
 | `autoAppBaseUrl` | `boolean` | `false` | Derive auth0 `appBaseUrl` from request `Host` header (see below) |
 
 ### `autoAppBaseUrl`
@@ -88,14 +85,39 @@ The module includes a synchronous Nitro plugin that works around a race conditio
 
 ## API proxy
 
-The proxy at `/proxy/{backendName}/...` (configurable via `proxyPrefix`) forwards requests to the backend URL configured in `runtimeConfig.tlv2.proxyBase.{backendName}`.
+The proxy is **opt-in**: the module ships the dispatch handler but does not mount a route. A consumer opts in with a config block and a one-line route file.
 
-- Unauthenticated requests get the server's default API key injected
-- Authenticated requests additionally get the user's JWT
-- Callers may provide their own API key via `?apikey=` query param or `apikey` header, which takes precedence over the default
-- When `requireLogin` is `true`, unauthenticated proxy requests are rejected with 401
+1. **Declare backends** in `runtimeConfig.tlv2proxy.backends` (the module auto-registers each at `/{prefix}/{name}`):
 
-**CSRF protection:** This module does not include CSRF protection. The proxy injects server-side credentials on behalf of the user, so consuming applications should configure their own CSRF protection (e.g. [`nuxt-csurf`](https://github.com/Morgbn/nuxt-csurf)) on proxy routes. This is especially important when `requireLogin` is `false`, as the proxy will forward requests with the server's API key for any caller. Note that `nuxt-csurf` only intercepts Nuxt's `$fetch` — if your app uses `globalThis.fetch` directly (e.g. Apollo), you will need a client plugin to inject the CSRF token on same-origin requests.
+   ```ts
+   runtimeConfig: {
+     tlv2proxy: {
+       backends: {
+         // Public: apikey fallback identity for token-less requests.
+         default:       { base: 'https://api.example.com', apikey: '' },
+         // Strict: no apikey; 401s unless the request has a valid user token.
+         stationEditor: { base: 'https://saas.example.com', requireToken: true },
+       },
+     },
+   }
+   ```
+
+2. **Mount the dispatcher** (`server/routes/proxy/[...].ts`):
+
+   ```ts
+   export { proxyEventHandler as default } from '@interline-io/tlv2-auth/server'
+   ```
+
+`backends` is an open record — add any backend name without changing tlv2-auth. Each entry (`{ base, apikey?, requireToken?, apikeyWithToken? }`) carries its own auth policy:
+
+- **`apikey`** is injected only when the request carries no user token — a fallback identity. Omit it to fail closed: a backend with no key never borrows a shared identity.
+- **`requireToken`** rejects with 401 unless the request has a valid user token — for privileged backends whose data must never be served to a degraded session. (`requireLogin` is reserved for the page-level login gate; it is not a proxy setting.)
+- A valid user token is **exclusive** — the request authenticates as that user and no apikey is attached. Set **`apikeyWithToken: true`** for a backend that needs the apikey for attribution alongside the token.
+- Callers may still supply their own key via `?apikey=` / `apikey` header on token-less requests.
+
+Values are driven from env via `NUXT_TLV2PROXY_BACKENDS_<NAME>_<FIELD>` (e.g. `NUXT_TLV2PROXY_BACKENDS_DEFAULT_APIKEY`). The `default` backend also serves the `/auth/session` `me` enrichment and SSR auth injection. For a dynamic backend, call `defineProxyBackend()` from your own nitro plugin. See `playground/` for a complete example.
+
+**CSRF protection:** This module does not include CSRF protection. The proxy injects server-side credentials on behalf of the user, so consuming applications should configure their own CSRF protection (e.g. [`nuxt-csurf`](https://github.com/Morgbn/nuxt-csurf)) on proxy routes. This especially matters for a backend configured with an `apikey`, which will forward requests with that key for any token-less caller. Note that `nuxt-csurf` only intercepts Nuxt's `$fetch` — if your app uses `globalThis.fetch` directly (e.g. Apollo), you will need a client plugin to inject the CSRF token on same-origin requests.
 
 ## Composables
 

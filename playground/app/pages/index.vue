@@ -38,8 +38,19 @@
     <section style="margin-top: 2rem;">
       <h2>Proxy Test</h2>
       <p style="color: #666; font-size: 0.9rem;">
-        Sends a GraphQL query through the proxy to test JWT auth against the backend.
+        Sends a GraphQL query through the proxy. <strong>default</strong> injects a fallback
+        apikey (works logged-out); <strong>stationEditor</strong> is strict — it returns 401
+        without a valid token.
       </p>
+      <div style="margin-top: 0.5rem;">
+        <label>
+          Backend:
+          <select v-model="client" style="margin-left: 0.25rem; padding: 0.4rem;">
+            <option value="default">default (public)</option>
+            <option value="stationEditor">stationEditor (strict)</option>
+          </select>
+        </label>
+      </div>
       <div style="margin-top: 0.5rem;">
         <label>
           Query:
@@ -80,7 +91,8 @@ const sessionResult = ref<string | null>(null)
 const sessionStatus = ref<number | null>(null)
 const sessionLoading = ref(false)
 
-const proxyQuery = ref('{ me { id name email roles } }')
+const client = ref('default')
+const proxyQuery = ref('{ me { id name email roles } feeds { onestop_id } }')
 const proxyResult = ref<string | null>(null)
 const proxyStatus = ref<number | null>(null)
 const proxyLoading = ref(false)
@@ -110,7 +122,7 @@ async function runProxyQuery () {
   proxyResult.value = null
   proxyStatus.value = null
   try {
-    const url = useApiEndpoint('/query')
+    const url = useApiEndpoint('/query', client.value)
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

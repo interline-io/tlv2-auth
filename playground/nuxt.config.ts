@@ -16,9 +16,12 @@ export default defineNuxtConfig({
       sessionSecret: '',
       audience: '',
     },
-    tlv2: {
-      proxyBase: {
-        default: '',
+    // Proxy backends — the module auto-registers these at /proxy/{name}. Set
+    // values via NUXT_TLV2PROXY_BACKENDS_<NAME>_<FIELD> (e.g. _DEFAULT_APIKEY).
+    tlv2proxy: {
+      backends: {
+        default: { base: 'https://api.transit.land/api/v2', apikey: '' },
+        stationEditor: { base: 'https://api.transit.land/api/v2', requireToken: true },
       },
     },
     public: {
@@ -38,9 +41,5 @@ export default defineNuxtConfig({
         strictTemplates: true,
       },
     },
-  },
-
-  tlv2Auth: {
-    proxyEnabled: true,
-  },
+  }
 })

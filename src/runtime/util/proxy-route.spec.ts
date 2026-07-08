@@ -80,12 +80,12 @@ describe('buildProxyHeaders', () => {
     expect(headers).toEqual({ apikey: 'my-api-key' })
   })
 
-  it('prefers requestApikey over graphqlApikey', () => {
+  it('prefers requestApikey over the backend key', () => {
     const headers = buildProxyHeaders('server-key', undefined, 'user-key')
     expect(headers).toEqual({ apikey: 'user-key' })
   })
 
-  it('falls back to graphqlApikey when no requestApikey', () => {
+  it('falls back to the backend key when no requestApikey', () => {
     const headers = buildProxyHeaders('server-key', undefined, '')
     expect(headers).toEqual({ apikey: 'server-key' })
   })

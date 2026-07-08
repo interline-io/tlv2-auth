@@ -3,10 +3,8 @@ import { proxyHandler } from '../../util/proxy'
 import { matchProxyBackend } from '../proxy-registry'
 import { useAuth0Session } from '../useSession'
 
-// Dispatches a proxy request to a consumer-registered backend (see
-// defineProxyBackend). Each backend declares its own auth policy: whether an
-// apikey is injected as a fallback identity, and whether a missing/expired user
-// token fails closed instead of degrading to that fallback.
+// Dispatches a proxy request to a registered backend, applying that backend's
+// auth policy (apikey injection + requireToken).
 export default defineEventHandler(async (event) => {
   const matched = matchProxyBackend(event.path || '')
   if (!matched) {
@@ -19,18 +17,14 @@ export default defineEventHandler(async (event) => {
 
   const auth = await useAuth0Session(event)
 
-  if ((backend.requireLogin || backend.requireToken) && !auth.loggedIn) {
-    throw createError({
-      statusCode: 401,
-      message: '[tlv2-proxy] Authentication required'
-    })
-  }
+  // A requireToken backend fails closed without a valid token — never falling
+  // back to the apikey identity — for both anonymous and degraded sessions.
   if (backend.requireToken && !auth.accessToken) {
-    // Logged in but no valid access token — the degraded window. Fail closed
-    // rather than fall back to the backend's apikey identity.
     throw createError({
       statusCode: 401,
-      message: '[tlv2-proxy] Session degraded; re-authentication required'
+      message: auth.loggedIn
+        ? '[tlv2-proxy] Session degraded; re-authentication required'
+        : '[tlv2-proxy] Authentication required'
     })
   }
 

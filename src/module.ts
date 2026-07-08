@@ -3,14 +3,11 @@ import { defu } from 'defu'
 import { DEFAULT_AUTH_PREFIX, DEFAULT_PROXY_PREFIX, AUTH0_PLACEHOLDER_DOMAIN } from './runtime/util/defaults'
 
 export interface ModuleOptions {
-  /** Enable the API proxy. Default: false */
-  proxyEnabled?: boolean
-  proxyBase?: string | Record<string, string>
   requireLogin?: boolean
   loginGate?: boolean
   /** URL prefix for auth routes (login, logout, session). Default: '/auth' */
   authPrefix?: string
-  /** URL prefix for the proxy route. Default: '/proxy' */
+  /** URL prefix for proxy requests; you mount the route here. Default: '/proxy' */
   proxyPrefix?: string
   /**
    * Derive auth0 appBaseUrl from the request Host header instead of using
@@ -38,7 +35,6 @@ export default defineNuxtModule<ModuleOptions>({
     }
   },
   defaults: {
-    proxyEnabled: false,
     requireLogin: false,
     loginGate: false,
     authPrefix: DEFAULT_AUTH_PREFIX,
@@ -116,13 +112,14 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolveRuntimeModule('server/middleware/auth0')
     })
 
-    // Private runtime options (server-side only)
+    // Private runtime options (server-side only). tlv2proxy.backends is the
+    // per-backend directory (base + apikey + policy, keyed by backend name); the
+    // consumer declares backends here and sets values via
+    // NUXT_TLV2PROXY_BACKENDS_<NAME>_<FIELD>. The `default` backend also serves
+    // /auth/session `me` enrichment and SSR injection.
     Object.assign(nuxt.options.runtimeConfig, defu(nuxt.options.runtimeConfig, {
-      tlv2: {
-        graphqlApikey: '',
-        proxyBase: typeof options.proxyBase === 'string'
-          ? { default: options.proxyBase }
-          : (options.proxyBase || {}),
+      tlv2proxy: {
+        backends: {},
       }
     }))
 
@@ -134,10 +131,15 @@ export default defineNuxtModule<ModuleOptions>({
           loginGate: options.loginGate,
           requireLogin: options.requireLogin,
           authPrefix,
-          proxyPrefix,
+        },
+        tlv2proxy: {
+          prefix: proxyPrefix,
         }
       }
     ))
+
+    // Auto-register the configured proxy backends into the registry at startup.
+    addServerPlugin(resolveRuntimeModule('server/plugins/register-proxy-backends'))
 
     // Setup plugins
     addPlugin(resolveRuntimeModule('plugins/auth.server'))
@@ -157,12 +159,8 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolveRuntimeModule('server/api/auth/session.get')
     })
 
-    // Proxy — only registered when explicitly enabled.
-    if (options.proxyEnabled) {
-      addServerHandler({
-        route: `${proxyPrefix}/**`,
-        handler: resolveRuntimeModule('server/api/proxy')
-      })
-    }
+    // The proxy route is opt-in and NOT registered here — a consumer declares
+    // tlv2proxy.backends and mounts its own route re-exporting proxyEventHandler
+    // (see README).
   }
 })

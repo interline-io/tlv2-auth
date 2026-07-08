@@ -9,22 +9,17 @@ import { traceEnabled, trace } from '../util/log'
 // original request. This covers both ofetch ($fetch/useFetch) and native
 // fetch (used by Apollo's createUploadLink).
 //
-// Only injects headers on requests to configured proxyBase origins to avoid
+// Only injects headers on requests to configured backend origins to avoid
 // leaking credentials to third-party services.
 const plugin: Plugin = defineNuxtPlugin((nuxtApp) => {
   const config = useRuntimeConfig()
-  const graphqlApikey = config.tlv2?.graphqlApikey || ''
+  const backends = config.tlv2proxy?.backends || {}
+  const identityApikey = backends.default?.apikey || ''
 
-  // Collect all configured backend origins
-  const proxyBases: Record<string, string> = config.tlv2?.proxyBase || {}
-  const allowedOrigins = Object.values(proxyBases)
-    .filter(Boolean)
-    .map((base) => {
-      const s = String(base)
-      if (!s.startsWith('http://') && !s.startsWith('https://')) { return '' }
-      return new URL(s).origin
-    })
-    .filter(Boolean)
+  const allowedOrigins = Object.values(backends)
+    .map(b => b?.base)
+    .filter((base): base is string => !!base && (base.startsWith('http://') || base.startsWith('https://')))
+    .map(base => new URL(base).origin)
 
   function isBackendRequest (url: string): boolean {
     if (!url.startsWith('http://') && !url.startsWith('https://')) { return false }
@@ -33,8 +28,8 @@ const plugin: Plugin = defineNuxtPlugin((nuxtApp) => {
 
   async function getAuthHeaders (): Promise<Record<string, string>> {
     const headers: Record<string, string> = {}
-    if (graphqlApikey) {
-      headers.apikey = graphqlApikey
+    if (identityApikey) {
+      headers.apikey = identityApikey
     }
     const event = nuxtApp.ssrContext?.event
     if (event) {

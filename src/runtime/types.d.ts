@@ -2,6 +2,7 @@
 // auth0-nuxt is installed dynamically via installModule() so its type
 // augmentations aren't visible during `nuxt typecheck` at the module level.
 // We declare the shapes we depend on here.
+import type { ProxyBackendConfig } from './server/proxy-registry'
 
 declare module 'nuxt/schema' {
   interface RuntimeConfig {
@@ -14,9 +15,10 @@ declare module 'nuxt/schema' {
       audience: string
     }
     tlv2: {
-      graphqlApikey: string
-      proxyBase: Record<string, string>
       autoAppBaseUrl: boolean
+    }
+    tlv2proxy: {
+      backends: Record<string, ProxyBackendConfig>
     }
   }
   interface PublicRuntimeConfig {
@@ -24,7 +26,9 @@ declare module 'nuxt/schema' {
       loginGate: boolean
       requireLogin: boolean
       authPrefix: string
-      proxyPrefix: string
+    }
+    tlv2proxy: {
+      prefix: string
     }
   }
 }

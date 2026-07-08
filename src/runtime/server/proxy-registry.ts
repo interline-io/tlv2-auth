@@ -1,45 +1,28 @@
-// Server-only registry of proxy backends.
-//
-// Consumers register backends — typically once each from a nitro plugin — with
-// defineProxyBackend(); the proxy dispatch handler reads them back. This mirrors
-// the database/sql driver pattern: registration is a startup side effect, and
-// dispatch is a lookup keyed on the registered path.
-//
-// This module holds API keys and MUST NOT be imported into the client bundle.
-// The registry is stored on globalThis so a single instance is shared across
-// the server bundle even if the module is evaluated more than once.
+// Server-only registry of proxy backends. The module's auto-register plugin
+// populates it from tlv2proxy.backends; a consumer can also defineProxyBackend()
+// directly. Holds API keys — never import from client code. Backed by globalThis
+// so the plugin and dispatcher share one instance across the server bundle.
 
 export interface ProxyBackend {
-  /**
-   * Full request path this backend serves, e.g. '/proxy/stationEditor'. Matched
-   * as a prefix; the matched portion is stripped before forwarding upstream.
-   * Must live under the mount root (proxyPrefix) for requests to reach it.
-   */
+  /** Request path this backend serves, e.g. '/proxy/stationEditor'; matched by prefix. */
   path: string
-  /** Upstream base URL matched requests are forwarded to. */
+  /** Upstream base URL requests are forwarded to. */
   proxyBase: string
-  /**
-   * API key injected when the request carries no user token. Omit to fail
-   * closed: a backend with no key never falls back to a shared identity, so a
-   * logged-out or token-less request reaches the upstream unauthenticated.
-   */
+  /** API key for token-less requests. Omit to fail closed (no fallback identity). */
   apikey?: string
-  /**
-   * Also send the configured apikey when the request already carries a valid
-   * user token. Off by default — a token is exclusive, so the backend can't
-   * resolve the request to the shared apikey identity. Enable for a backend
-   * that needs the apikey for attribution (quota/rate-limit) alongside the
-   * user token.
-   */
+  /** Send the apikey even alongside a user token (default: token is exclusive). */
   apikeyWithToken?: boolean
-  /**
-   * Reject with 401 unless the request has a logged-in session with a valid
-   * access token. Use for privileged backends whose data must never be served
-   * to a degraded (token-less) session.
-   */
+  /** Reject with 401 unless the request has a valid user token (for privileged backends). */
   requireToken?: boolean
-  /** Reject anonymous requests with 401 (implied by requireToken). */
-  requireLogin?: boolean
+}
+
+// Per-backend config in tlv2proxy.backends (name-keyed); the path is derived as
+// `${prefix}/${name}` when the auto-register plugin registers it.
+export interface ProxyBackendConfig {
+  base: string
+  apikey?: string
+  apikeyWithToken?: boolean
+  requireToken?: boolean
 }
 
 const REGISTRY_KEY = '__tlv2AuthProxyRegistry'
@@ -55,17 +38,20 @@ function store (): Map<string, ProxyBackend> {
 }
 
 function normalizePath (path: string): string {
-  const trimmed = path.replace(/\/+$/, '')
+  // Trim trailing slashes by index scan, not /\/+$/ — that backtracks
+  // polynomially on long runs of '/' (CodeQL js/polynomial-redos).
+  let end = path.length
+  while (end > 0 && path[end - 1] === '/') {
+    end--
+  }
+  const trimmed = path.slice(0, end)
   if (!trimmed.startsWith('/')) {
     throw new Error(`[tlv2-auth] proxy backend path must start with "/", got: "${path}"`)
   }
   return trimmed
 }
 
-/**
- * Register a proxy backend. Call once per backend, typically from a nitro
- * plugin. Re-registering the same path overwrites the previous entry (HMR-safe).
- */
+/** Register a proxy backend (re-registering a path overwrites it). */
 export function defineProxyBackend (backend: ProxyBackend): void {
   const path = normalizePath(backend.path)
   if (!/^https?:\/\//.test(backend.proxyBase)) {
@@ -74,22 +60,18 @@ export function defineProxyBackend (backend: ProxyBackend): void {
   store().set(path, { ...backend, path })
 }
 
-/** All registered backends, longest path first so nested paths win. */
+/** All registered backends, longest path first. */
 export function listProxyBackends (): ProxyBackend[] {
   return [...store().values()].sort((a, b) => b.path.length - a.path.length)
 }
 
-/**
- * Match a request path to a backend by longest path prefix. Returns the backend
- * and the remaining path (query preserved) to forward, or null when unmatched.
- */
+/** Match a request path to a backend by longest prefix; returns it plus the stripped path (query kept), or null. */
 export function matchProxyBackend (
   requestPath: string
 ): { backend: ProxyBackend, strippedPath: string } | null {
   const qIndex = requestPath.indexOf('?')
   const pathname = qIndex === -1 ? requestPath : requestPath.slice(0, qIndex)
   const query = qIndex === -1 ? '' : requestPath.slice(qIndex)
-  // Single pass tracking the longest matching prefix — no per-request sort.
   let best: ProxyBackend | null = null
   for (const backend of store().values()) {
     const matches = pathname === backend.path || pathname.startsWith(`${backend.path}/`)
