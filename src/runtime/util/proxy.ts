@@ -29,13 +29,14 @@ export async function proxyHandler (
   const requestApikey = (query.apikey ? query.apikey.toString() : '') || event.headers.get('apikey') || ''
   const headers = buildProxyHeaders(backendApikey, accessToken, requestApikey, apikeyWithToken)
 
-  // Strip caller-supplied credentials so nothing rides past the injected policy.
-  // Two layers: (1) delete them from the incoming request (Node lowercases header
-  // names, so one lowercase delete covers all casings); and (2) pin the outgoing
-  // values below. h3 applies our `headers` last in mergeHeaders and treats '' as
-  // an override, so this neutralizes the caller's credentials independent of how
-  // the runtime sources forwarded headers — buildProxyHeaders has already set
-  // authorization/apikey to the injected values where policy allows.
+  // Strip caller-supplied credentials so nothing rides past the injected policy:
+  // delete them from the incoming request (Node lowercases header names, so one
+  // lowercase delete covers all casings), and pin the session cookie empty on the
+  // outgoing request. h3 applies our `headers` last in mergeHeaders and treats ''
+  // as an override, so the auth0 cookie is dropped regardless of how the runtime
+  // sources forwarded headers. Only cookie is pinned: authorization/apikey are
+  // covered by the delete + buildProxyHeaders, and forcing them empty could make a
+  // strict backend reject a present-but-empty Authorization.
   const reqHeaders = event.node?.req?.headers
   if (reqHeaders) {
     delete reqHeaders.cookie
@@ -43,10 +44,7 @@ export async function proxyHandler (
     delete reqHeaders.authorization
     delete reqHeaders['proxy-authorization']
   }
-  headers.cookie = headers.cookie ?? ''
-  headers.authorization = headers.authorization ?? ''
-  headers.apikey = headers.apikey ?? ''
-  headers['proxy-authorization'] = ''
+  headers.cookie = ''
   const target = buildProxyTarget(proxyBase, stripApikeyParam(pathOverride ?? event.path))
 
   if (traceEnabled) {
