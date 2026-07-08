@@ -56,11 +56,11 @@ const plugin: Plugin = defineNuxtPlugin(() => {
 
     me.value = auth0User.value.tlv2_me
     sessionStorage.removeItem(REAUTH_KEY)
-    // Resolve only when enrichment produced `me`; if it failed/timed out, leave
-    // unresolved so the next navigation retries.
-    if (auth0User.value.tlv2_me) {
-      resolved.value = true
-    }
+    // Resolve after one fetch per page load, whether or not `me` came back.
+    // Roles are UI-gating only and refresh on reload, so a failed/timed-out
+    // enrichment shows no roles until the next reload — rather than refetching
+    // /session on every navigation, which a permanent failure (no backend) would.
+    resolved.value = true
   }, {
     global: true
   })

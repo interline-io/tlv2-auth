@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import { enrichUserClaims } from '../util/enrich'
 import { resolveProxyBackends } from '../util/backends'
+import { buildProxyHeaders } from '../util/proxy-route'
 import { useAuth0Session } from './useSession'
 import { traceEnabled, trace, traceUserClaims } from '../util/log'
 
@@ -26,7 +27,7 @@ async function fetchMeData (proxyBase: string, headers: Record<string, string>) 
   if (!response || !response.ok) {
     if (response) {
       let jwtInfo: string | Record<string, unknown> = '(none)'
-      const token = headers.Authorization?.replace('Bearer ', '')
+      const token = headers.authorization?.replace('Bearer ', '')
       if (token) {
         try {
           const payload = JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString())
@@ -79,12 +80,10 @@ export async function getSessionUser (
     return auth.user
   }
 
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${auth.accessToken}`
-  }
-  if (identity.apikey) {
-    headers.apikey = identity.apikey
-  }
+  // Token-exclusive, via the same helper the proxy uses: authenticate `me` as
+  // the user; only attach the shared apikey when the backend opts in with
+  // apikeyWithToken, so roles never resolve under the shared key's identity.
+  const headers = buildProxyHeaders(identity.apikey, auth.accessToken, undefined, identity.apikeyWithToken)
 
   const meData = await fetchMeData(identity.base, headers)
   if (traceEnabled) {
