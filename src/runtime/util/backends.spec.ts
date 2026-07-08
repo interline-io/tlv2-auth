@@ -8,27 +8,53 @@ describe('resolveProxyBackends', () => {
     })).toEqual({ default: { base: 'https://new.example.com', apikey: 'k' } })
   })
 
-  it('folds legacy base + apikey into a missing default backend', () => {
+  it('maps legacy base + apikey into a missing default backend', () => {
     expect(resolveProxyBackends({
       tlv2: { graphqlApikey: 'legacy-key', proxyBase: { default: 'https://legacy.example.com' } }
     })).toEqual({ default: { base: 'https://legacy.example.com', apikey: 'legacy-key' } })
   })
 
-  it('prefers the configured default backend over legacy', () => {
+  it('maps ALL legacy proxyBase keys, not just default', () => {
     const r = resolveProxyBackends({
-      tlv2proxy: { backends: { default: { base: 'https://new.example.com', apikey: 'new-key' } } },
-      tlv2: { graphqlApikey: 'legacy-key', proxyBase: { default: 'https://legacy.example.com' } }
+      tlv2: {
+        graphqlApikey: 'legacy-key',
+        proxyBase: {
+          default: 'https://legacy.example.com',
+          stationEditor: 'https://saas.example.com',
+          feedManagement: 'https://fm.example.com'
+        }
+      }
     })
-    expect(r.default).toEqual({ base: 'https://new.example.com', apikey: 'new-key' })
+    // Legacy apikey only applies to `default`; other backends get base only.
+    expect(r.default).toEqual({ base: 'https://legacy.example.com', apikey: 'legacy-key' })
+    expect(r.stationEditor).toEqual({ base: 'https://saas.example.com' })
+    expect(r.feedManagement).toEqual({ base: 'https://fm.example.com' })
   })
 
-  it('leaves other backends untouched while folding legacy into default', () => {
+  it('does NOT re-arm a declared-but-keyless default when a legacy apikey lingers', () => {
+    // A consumer that migrated to a fail-closed default (apikey omitted) must
+    // not have a stale NUXT_TLV2_GRAPHQL_APIKEY folded back in.
+    const r = resolveProxyBackends({
+      tlv2proxy: { backends: { default: { base: 'https://new.example.com' } } },
+      tlv2: { graphqlApikey: 'legacy-key', proxyBase: { default: 'https://legacy.example.com' } }
+    })
+    expect(r.default).toEqual({ base: 'https://new.example.com' })
+    expect(r.default?.apikey).toBeUndefined()
+  })
+
+  it('leaves declared backends untouched while mapping legacy into undeclared ones', () => {
     const r = resolveProxyBackends({
       tlv2proxy: { backends: { stationEditor: { base: 'https://saas.example.com', requireToken: true } } },
-      tlv2: { graphqlApikey: 'legacy-key', proxyBase: { default: 'https://legacy.example.com' } }
+      tlv2: { graphqlApikey: 'legacy-key', proxyBase: { default: 'https://legacy.example.com', stationEditor: 'https://ignored.example.com' } }
     })
     expect(r.stationEditor).toEqual({ base: 'https://saas.example.com', requireToken: true })
     expect(r.default).toEqual({ base: 'https://legacy.example.com', apikey: 'legacy-key' })
+  })
+
+  it('ignores empty legacy base values', () => {
+    expect(resolveProxyBackends({
+      tlv2: { graphqlApikey: 'legacy-key', proxyBase: { default: '' } }
+    })).toEqual({})
   })
 
   it('returns empty when nothing is configured', () => {

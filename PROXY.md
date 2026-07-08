@@ -1,9 +1,11 @@
 # API proxy
 
-The module mounts a same-origin proxy that forwards browser requests to a
-backend API, injecting server-side credentials the browser never sees. It owns
-the route and the credential policy — consumers configure backends and make
-same-origin requests; nothing else.
+With `proxyEnabled: true`, the module mounts a same-origin proxy that forwards
+browser requests to a backend API, injecting server-side credentials the
+browser never sees. It owns the route and the credential policy — consumers opt
+in, configure backends, and make same-origin requests; nothing else. (It's off
+by default because it injects credentials — it should never appear just because
+legacy env vars are set.)
 
 ## Why proxy at all
 

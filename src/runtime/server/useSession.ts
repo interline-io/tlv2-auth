@@ -31,15 +31,16 @@ export async function useAuth0Session (event: H3Event): Promise<SessionContext> 
     trace('useAuth0Session — fetching access token for user:', session.user?.sub)
   }
   // getAccessToken() rejects on a degraded session (token expired, refresh
-  // failed/absent). Treat that as no token — loggedIn stays true — so callers
-  // fail closed with a clean 401 instead of the SDK rejection surfacing as a 500.
+  // failed/absent). Keep loggedIn true but with no token — callers handle the
+  // missing token explicitly (session.get skips apikey-only enrichment;
+  // requireToken backends 401). Logged unconditionally so a non-degraded
+  // failure (auth0 outage, misconfigured audience, rotated secret) is
+  // diagnosable in production, not silent.
   let accessToken = ''
   try {
     accessToken = await session.getAccessToken()
   } catch (e) {
-    if (traceEnabled) {
-      trace('useAuth0Session — getAccessToken threw (degraded session):', (e as Error)?.message)
-    }
+    console.warn('[tlv2-auth] getAccessToken failed (degraded session):', (e as Error)?.message)
   }
   if (traceEnabled) {
     trace('useAuth0Session — accessToken length:', accessToken?.length, 'empty:', !accessToken)

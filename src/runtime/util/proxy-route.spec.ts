@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseProxyRoute, buildProxyTarget, buildProxyHeaders } from './proxy-route'
+import { parseProxyRoute, buildProxyTarget, buildProxyHeaders, stripApikeyParam } from './proxy-route'
 
 describe('parseProxyRoute', () => {
   it('parses name and stripped path', () => {
@@ -131,5 +131,20 @@ describe('buildProxyHeaders', () => {
   it('omits apikey header when both keys are empty', () => {
     const headers = buildProxyHeaders('', undefined, '')
     expect(headers).toEqual({})
+  })
+})
+
+describe('stripApikeyParam', () => {
+  it('returns the path unchanged when there is no query', () => {
+    expect(stripApikeyParam('/query')).toBe('/query')
+  })
+  it('returns the path unchanged when there is no apikey param', () => {
+    expect(stripApikeyParam('/query?limit=3')).toBe('/query?limit=3')
+  })
+  it('drops a lone apikey param, leaving no query', () => {
+    expect(stripApikeyParam('/query?apikey=secret')).toBe('/query')
+  })
+  it('drops apikey but keeps other params', () => {
+    expect(stripApikeyParam('/query?limit=3&apikey=secret')).toBe('/query?limit=3')
   })
 })

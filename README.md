@@ -75,6 +75,7 @@ modules: [['@interline-io/tlv2-auth', { autoAppBaseUrl: true }]]
 | `requireLogin` | `boolean` | `false` | Redirect unauthenticated users to Auth0 login (client-side page gate) |
 | `loginGate` | `boolean` | `false` | Show login UI gate |
 | `authPrefix` | `string` | `'/auth'` | URL prefix for auth routes (login, logout, session) |
+| `proxyEnabled` | `boolean` | `false` | Mount the API proxy. Off by default — it injects server-side credentials, so it must be explicitly opted into |
 | `proxyPrefix` | `string` | `'/proxy'` | URL prefix the module mounts the proxy under, and that `useApiEndpoint` builds requests against |
 | `autoAppBaseUrl` | `boolean` | `false` | Derive auth0 `appBaseUrl` from request `Host` header (see below) |
 
@@ -92,7 +93,11 @@ The module includes a synchronous Nitro plugin that works around a race conditio
 
 ## API proxy
 
-The module mounts a same-origin proxy at `{proxyPrefix}` (default `/proxy`) and injects server-side credentials so the browser never handles an apikey and never makes a cross-origin call. Declare backends in `runtimeConfig.tlv2proxy.backends`; each is mounted at `/{proxyPrefix}/{name}`.
+Set `proxyEnabled: true` to mount a same-origin proxy at `{proxyPrefix}` (default `/proxy`); it injects server-side credentials so the browser never handles an apikey and never makes a cross-origin call. Declare backends in `runtimeConfig.tlv2proxy.backends`; each is mounted at `/{proxyPrefix}/{name}`.
+
+```ts
+modules: [['@interline-io/tlv2-auth', { proxyEnabled: true }]]
+```
 
 ```ts
 tlv2proxy: {
@@ -111,7 +116,7 @@ Supply secrets via `NUXT_TLV2PROXY_BACKENDS_<NAME>_<FIELD>` (e.g. `NUXT_TLV2PROX
 
 ### Migration
 
-During migration the legacy `NUXT_TLV2_GRAPHQL_APIKEY` (apikey) and `NUXT_TLV2_PROXY_BASE_DEFAULT` (endpoint) env vars still fold into the `default` backend when `tlv2proxy.backends.default` leaves those fields unset. Move to `NUXT_TLV2PROXY_BACKENDS_DEFAULT_*`; the legacy bridge is temporary.
+During migration the legacy `NUXT_TLV2_GRAPHQL_APIKEY` (apikey) and `NUXT_TLV2_PROXY_BASE_<NAME>` (endpoints) env vars map into any backend you have **not** declared in `tlv2proxy.backends` — a declared backend is never merged into, so a deliberately keyless backend stays fail-closed even if a stale legacy apikey lingers. Move to `NUXT_TLV2PROXY_BACKENDS_<NAME>_*`; the legacy bridge is temporary.
 
 ## Composables
 

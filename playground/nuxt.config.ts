@@ -16,7 +16,7 @@ export default defineNuxtConfig({
       sessionSecret: '',
       audience: '',
     },
-    // Proxy backends — the module auto-registers these at /proxy/{name}. Set
+    // Proxy backends — mounted at /proxy/{name} (proxyEnabled above). Set
     // values via NUXT_TLV2PROXY_BACKENDS_<NAME>_<FIELD> (e.g. _DEFAULT_APIKEY).
     tlv2proxy: {
       backends: {
@@ -41,5 +41,9 @@ export default defineNuxtConfig({
         strictTemplates: true,
       },
     },
-  }
+  },
+
+  tlv2Auth: {
+    proxyEnabled: true,
+  },
 })

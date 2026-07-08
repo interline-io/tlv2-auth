@@ -7,7 +7,13 @@ export interface ModuleOptions {
   loginGate?: boolean
   /** URL prefix for auth routes (login, logout, session). Default: '/auth' */
   authPrefix?: string
-  /** URL prefix for proxy requests; you mount the route here. Default: '/proxy' */
+  /**
+   * Mount the API proxy at `proxyPrefix`. Off by default — the proxy injects
+   * server-side credentials, so it must be explicitly opted into (and backends
+   * configured) to be reachable.
+   */
+  proxyEnabled?: boolean
+  /** URL prefix for proxy requests. Default: '/proxy' */
   proxyPrefix?: string
   /**
    * Derive auth0 appBaseUrl from the request Host header instead of using
@@ -37,6 +43,7 @@ export default defineNuxtModule<ModuleOptions>({
   defaults: {
     requireLogin: false,
     loginGate: false,
+    proxyEnabled: false,
     authPrefix: DEFAULT_AUTH_PREFIX,
     proxyPrefix: DEFAULT_PROXY_PREFIX,
     autoAppBaseUrl: false,
@@ -121,8 +128,9 @@ export default defineNuxtModule<ModuleOptions>({
       tlv2proxy: {
         backends: {},
       },
-      // Legacy migration: keep NUXT_TLV2_GRAPHQL_APIKEY / NUXT_TLV2_PROXY_BASE_DEFAULT
-      // bindable so they fold into the default backend (see resolveProxyBackends).
+      // Legacy migration: keep NUXT_TLV2_GRAPHQL_APIKEY / NUXT_TLV2_PROXY_BASE_*
+      // bindable so they map into undeclared backends (see resolveProxyBackends).
+      // Consumers with more than `default` declare the extra keys here too.
       tlv2: {
         graphqlApikey: '',
         proxyBase: { default: '' },
@@ -162,15 +170,19 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolveRuntimeModule('server/api/auth/session.get')
     })
 
-    // Log the resolved proxy backends once at server startup (no secrets).
-    addServerPlugin(resolveRuntimeModule('server/plugins/log-proxy-backends'))
-
-    // Mount the proxy dispatcher. The module owns the route so the credential
-    // injection, cookie handling, and CSRF gate live in one place — no
-    // per-consumer wiring. Unconfigured backends 404.
-    addServerHandler({
-      route: `${proxyPrefix}/**`,
-      handler: resolveRuntimeModule('server/api/proxy')
-    })
+    // Mount the proxy only when explicitly enabled — it injects server-side
+    // credentials, so it must not appear on upgrade just because legacy env
+    // vars are present. The module owns the route so credential injection and
+    // cookie/apikey stripping live in one place; anti-abuse gating (for a
+    // backend that injects an anonymous apikey) is the consuming app's job
+    // (see PROXY.md). Unconfigured backends 404.
+    if (options.proxyEnabled) {
+      // Log the resolved proxy backends once at server startup (no secrets).
+      addServerPlugin(resolveRuntimeModule('server/plugins/log-proxy-backends'))
+      addServerHandler({
+        route: `${proxyPrefix}/**`,
+        handler: resolveRuntimeModule('server/api/proxy')
+      })
+    }
   }
 })

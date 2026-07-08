@@ -65,6 +65,13 @@ export default defineEventHandler(async (event) => {
 
   traceUserClaims('session.get — user claims:', auth.user)
 
+  // Degraded session (logged in, no access token): skip enrichment. A `me`
+  // fetched with only the apikey would resolve to the shared key's identity and
+  // stamp its roles onto this user's claims. Return the auth0 claims unchanged.
+  if (!auth.accessToken) {
+    return auth.user
+  }
+
   // Enrich with roles from the `default` backend's GraphQL `me` endpoint.
   const config = useRuntimeConfig(event)
   const identity = resolveProxyBackends(config).default

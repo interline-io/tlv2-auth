@@ -19,6 +19,23 @@ export function parseProxyRoute (path: string, prefix: string): { name: string, 
   return { name, strippedPath: (tail || '/') + query }
 }
 
+// Remove the `apikey` query param from a path+query string. Its value is
+// captured and re-applied as a header when policy allows (see buildProxyHeaders),
+// so it must never also ride the forwarded URL.
+export function stripApikeyParam (pathAndQuery: string): string {
+  const q = pathAndQuery.indexOf('?')
+  if (q === -1) {
+    return pathAndQuery
+  }
+  const params = new URLSearchParams(pathAndQuery.slice(q + 1))
+  if (!params.has('apikey')) {
+    return pathAndQuery
+  }
+  params.delete('apikey')
+  const rest = params.toString()
+  return rest ? `${pathAndQuery.slice(0, q)}?${rest}` : pathAndQuery.slice(0, q)
+}
+
 // Build the target URL from proxyBase and the stripped request path.
 // Throws if the resolved path escapes the proxyBase origin (SSRF) or pathname
 // (path traversal).
