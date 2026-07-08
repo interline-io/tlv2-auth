@@ -14,7 +14,7 @@
       </NuxtLink>
     </p>
 
-    <section style="margin-top: 1.5rem;">
+    <section class="box">
       <h2>Auth Status</h2>
       <div v-if="user.loggedIn">
         <p>Logged in as: <strong>{{ user.name || user.email }}</strong></p>
@@ -31,7 +31,7 @@
       </div>
     </section>
 
-    <section style="margin-top: 2rem;">
+    <section class="box">
       <h2>Session</h2>
       <button :disabled="sessionLoading" @click="fetchSession">
         {{ sessionLoading ? 'Loading...' : 'Fetch /auth/session' }}
@@ -43,11 +43,11 @@
       </div>
       <pre
         v-if="sessionResult !== null"
-        style="margin-top: 0.5rem; background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; max-height: 400px; overflow-y: auto;"
+        style="margin-top: 0.5rem; background: #fff; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; max-height: 400px; overflow-y: auto;"
       >{{ sessionResult }}</pre>
     </section>
 
-    <section style="margin-top: 2rem; border-top: 1px solid #ddd; padding-top: 1rem;">
+    <section class="box">
       <h2>Debug: session simulation (dev only)</h2>
       <p style="color: #555;">
         Each button sets a <code>tlv2_debug_auth</code> cookie that a dev-only hook
@@ -63,50 +63,58 @@
       </p>
 
       <div style="margin-top: 1rem;">
-        <button @click="setSim('degraded-once')">
-          Degraded (recoverable)
-        </button>
-        <p style="color: #555; margin: 0.35rem 0 1.1rem;">
-          Sets <code>tlv2_debug_auth=degraded-once</code>. The server returns your
-          real user claims but with an <strong>empty access token</strong> — exactly
-          as if <code>getAccessToken()</code> threw — and <strong>deletes the cookie
-            on that read</strong>, so the next check is healthy again. Simulates a
-          recoverable lapse: the client's recovery re-login round-trips auth0 and,
-          with the SSO session still alive, comes back with a real token. You should
-          end up logged in with roles — silent recovery.
-        </p>
+        <div class="sim">
+          <button @click="setSim('degraded-once')">
+            Degraded (recoverable)
+          </button>
+          <p style="color: #555; margin: 0.35rem 0 0;">
+            Sets <code>tlv2_debug_auth=degraded-once</code>. The server returns your
+            real user claims but with an <strong>empty access token</strong> — exactly
+            as if <code>getAccessToken()</code> threw — and <strong>deletes the cookie
+              on that read</strong>, so the next check is healthy again. Simulates a
+            recoverable lapse: the client's recovery re-login round-trips auth0 and,
+            with the SSO session still alive, comes back with a real token. You should
+            end up logged in with roles — silent recovery.
+          </p>
+        </div>
 
-        <button @click="setSim('degraded')">
-          Degraded (sticky → local logout)
-        </button>
-        <p style="color: #555; margin: 0.35rem 0 1.1rem;">
-          Sets <code>tlv2_debug_auth=degraded</code> and <strong>leaves it set</strong>.
-          Every <code>/auth/session</code> read returns your claims with an empty
-          access token until you clear it. Simulates a dead refresh token that
-          <em>can't</em> recover: the recovery re-login returns still degraded, so on
-          the second pass the client falls back to a <strong>local logout</strong>
-          (clears the <code>__a0_session</code> cookie, keeps the auth0 SSO session).
-          You end up logged out on <code>/</code>. Click "Healthy" before logging
-          back in, or the sticky cookie re-degrades you immediately.
-        </p>
+        <div class="sim">
+          <button @click="setSim('degraded')">
+            Degraded (sticky → local logout)
+          </button>
+          <p style="color: #555; margin: 0.35rem 0 0;">
+            Sets <code>tlv2_debug_auth=degraded</code> and <strong>leaves it set</strong>.
+            Every <code>/auth/session</code> read returns your claims with an empty
+            access token until you clear it. Simulates a dead refresh token that
+            <em>can't</em> recover: the recovery re-login returns still degraded, so on
+            the second pass the client falls back to a <strong>local logout</strong>
+            (clears the <code>__a0_session</code> cookie, keeps the auth0 SSO session).
+            You end up logged out on <code>/</code>. Click "Healthy" before logging
+            back in, or the sticky cookie re-degrades you immediately.
+          </p>
+        </div>
 
-        <button @click="setSim('anonymous')">
-          Anonymous
-        </button>
-        <p style="color: #555; margin: 0.35rem 0 1.1rem;">
-          Sets <code>tlv2_debug_auth=anonymous</code>. The server reports
-          <strong>no session at all</strong>, ignoring your real session cookie.
-          Simulates a fully signed-out user server-side (no recovery — there was
-          never a token to lose).
-        </p>
+        <div class="sim">
+          <button @click="setSim('anonymous')">
+            Anonymous
+          </button>
+          <p style="color: #555; margin: 0.35rem 0 0;">
+            Sets <code>tlv2_debug_auth=anonymous</code>. The server reports
+            <strong>no session at all</strong>, ignoring your real session cookie.
+            Simulates a fully signed-out user server-side (no recovery — there was
+            never a token to lose).
+          </p>
+        </div>
 
-        <button @click="setSim('')">
-          Healthy (clear)
-        </button>
-        <p style="color: #555; margin: 0.35rem 0 0;">
-          Deletes the <code>tlv2_debug_auth</code> cookie. Restores normal behavior:
-          real access token and role enrichment from the <code>me</code> query.
-        </p>
+        <div class="sim">
+          <button @click="setSim('')">
+            Healthy (clear)
+          </button>
+          <p style="color: #555; margin: 0.35rem 0 0;">
+            Deletes the <code>tlv2_debug_auth</code> cookie. Restores normal behavior:
+            real access token and role enrichment from the <code>me</code> query.
+          </p>
+        </div>
       </div>
     </section>
   </div>
@@ -169,3 +177,18 @@ async function fetchSession () {
   }
 }
 </script>
+
+<style scoped>
+.box {
+  background: #eee;
+  padding: 1rem 1.25rem;
+  border-radius: 6px;
+  margin: 1.5rem 0;
+}
+.sim {
+  background: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin: 0.75rem 0;
+}
+</style>
