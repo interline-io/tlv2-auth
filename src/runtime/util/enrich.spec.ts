@@ -8,33 +8,15 @@ describe('enrichUserClaims', () => {
     expect(enrichUserClaims(baseUser, null)).toEqual(baseUser)
   })
 
-  it('merges meData into user claims', () => {
-    const result = enrichUserClaims(baseUser, {
+  it('attaches the full me response (incl. external_data) under tlv2_me', () => {
+    const meData = {
       id: 'gql-42',
       name: 'Alice B',
       email: 'alice@work.com',
-      roles: ['admin', 'editor']
-    })
-    expect(result).toEqual({
-      ...baseUser,
-      tlv2_id: 'gql-42',
-      tlv2_name: 'Alice B',
-      tlv2_email: 'alice@work.com',
-      tlv2_roles: ['admin', 'editor']
-    })
-  })
-
-  it('defaults missing meData fields to empty values', () => {
-    const result = enrichUserClaims(baseUser, {})
-    expect(result.tlv2_id).toBe('')
-    expect(result.tlv2_name).toBe('')
-    expect(result.tlv2_email).toBe('')
-    expect(result.tlv2_roles).toEqual([])
-  })
-
-  it('defaults undefined roles to empty array', () => {
-    const result = enrichUserClaims(baseUser, { id: '1', roles: undefined })
-    expect(result.tlv2_roles).toEqual([])
+      roles: ['admin', 'editor'],
+      external_data: { metering_id: 'abc', quota: '42' }
+    }
+    expect(enrichUserClaims(baseUser, meData)).toEqual({ ...baseUser, tlv2_me: meData })
   })
 
   it('preserves original user claims', () => {
@@ -44,10 +26,9 @@ describe('enrichUserClaims', () => {
     expect(result.email).toBe('alice@example.com')
   })
 
-  it('tlv2 fields do not clobber by existing user keys', () => {
-    const userWithExtra = { ...baseUser, tlv2_id: 'old-id' }
-    const result = enrichUserClaims(userWithExtra, { id: 'new-id' })
-    // meData wins via spread order
-    expect(result.tlv2_id).toBe('new-id')
+  it('a fresh me response replaces an existing tlv2_me', () => {
+    const userWithMe = { ...baseUser, tlv2_me: { id: 'old' } }
+    const result = enrichUserClaims(userWithMe, { id: 'new' })
+    expect(result.tlv2_me).toEqual({ id: 'new' })
   })
 })
