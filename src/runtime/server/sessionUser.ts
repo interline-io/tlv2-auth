@@ -4,16 +4,22 @@ import { resolveProxyBackends } from '../util/backends'
 import { useAuth0Session } from './useSession'
 import { traceEnabled, trace, traceUserClaims } from '../util/log'
 
+// Cap the `me` enrichment so a slow/hung backend can't stall the SSR render (it
+// runs on the render path) or the /auth/session response. On timeout the query
+// returns null and enrichment is skipped; the client re-fetches to fill roles.
+const ENRICH_TIMEOUT_MS = 1000
+
 // Fetch roles from the GraphQL `me` endpoint. Returns null if the backend is
-// unreachable or errors — enrichment is best-effort since the GraphQL backend
-// is optional.
+// unreachable, times out, or errors — enrichment is best-effort since the
+// GraphQL backend is optional.
 async function fetchMeData (proxyBase: string, headers: Record<string, string>) {
   const response = await fetch(`${proxyBase}/query`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: '{ me { id name email roles } }' })
+    body: JSON.stringify({ query: '{ me { id name email roles external_data } }' }),
+    signal: AbortSignal.timeout(ENRICH_TIMEOUT_MS)
   }).catch((e: Error) => {
-    console.warn('[tlv2-auth] session enrich: GraphQL me query network error:', e.message)
+    console.warn('[tlv2-auth] session enrich: GraphQL me query failed (network/timeout):', e.message)
     return null
   })
   if (!response || !response.ok) {

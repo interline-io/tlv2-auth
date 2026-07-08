@@ -9,19 +9,34 @@ describe('enrichUserClaims', () => {
   })
 
   it('merges meData into user claims', () => {
-    const result = enrichUserClaims(baseUser, {
+    const meData = {
       id: 'gql-42',
       name: 'Alice B',
       email: 'alice@work.com',
       roles: ['admin', 'editor']
-    })
+    }
+    const result = enrichUserClaims(baseUser, meData)
     expect(result).toEqual({
       ...baseUser,
       tlv2_id: 'gql-42',
       tlv2_name: 'Alice B',
       tlv2_email: 'alice@work.com',
-      tlv2_roles: ['admin', 'editor']
+      tlv2_roles: ['admin', 'editor'],
+      tlv2_me: meData
     })
+  })
+
+  it('carries the full me response (incl. external_data) under tlv2_me', () => {
+    const meData = {
+      id: '1',
+      name: 'A',
+      email: 'a@b.c',
+      roles: [],
+      external_data: { metering_id: 'abc', quota: '42' }
+    }
+    const result = enrichUserClaims(baseUser, meData)
+    expect(result.tlv2_me).toEqual(meData)
+    expect(result.tlv2_me.external_data).toEqual({ metering_id: 'abc', quota: '42' })
   })
 
   it('defaults missing meData fields to empty values', () => {

@@ -14,11 +14,16 @@ const plugin: Plugin = defineNuxtPlugin(async (nuxtApp) => {
     return
   }
   const user = await getSessionUser(event, useRuntimeConfig())
-  if (!user || user.tlv2_degraded) {
+  // Only hand roles to the client when enrichment actually ran: enrichUserClaims
+  // adds `tlv2_roles` only on a successful `me` fetch, so its absence means the
+  // query failed or timed out (or no backend is configured). Leave the flag
+  // unset in that case so the client re-fetches rather than adopting empty roles.
+  if (!user || user.tlv2_degraded || !Array.isArray(user.tlv2_roles)) {
     return
   }
-  useState<string[]>('tlv2_user_roles', () => []).value = [...(user.tlv2_roles || [])].sort()
+  useState<string[]>('tlv2_user_roles', () => []).value = [...user.tlv2_roles].sort()
   useState<string>('tlv2_user_id', () => '').value = user.tlv2_id || ''
+  useState<Record<string, any> | undefined>('tlv2_user_me', () => undefined).value = user.tlv2_me
   useState<boolean>('tlv2_ssr_enriched', () => false).value = true
 })
 export default plugin
