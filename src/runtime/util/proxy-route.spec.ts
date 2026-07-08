@@ -1,5 +1,30 @@
 import { describe, it, expect } from 'vitest'
-import { buildProxyTarget, buildProxyHeaders } from './proxy-route'
+import { parseProxyRoute, buildProxyTarget, buildProxyHeaders } from './proxy-route'
+
+describe('parseProxyRoute', () => {
+  it('parses name and stripped path', () => {
+    expect(parseProxyRoute('/proxy/stationEditor/query', '/proxy')).toEqual({ name: 'stationEditor', strippedPath: '/query' })
+  })
+  it('defaults stripped path to "/" for a bare backend', () => {
+    expect(parseProxyRoute('/proxy/default', '/proxy')).toEqual({ name: 'default', strippedPath: '/' })
+  })
+  it('preserves the query string', () => {
+    expect(parseProxyRoute('/proxy/default/query?limit=10', '/proxy')).toEqual({ name: 'default', strippedPath: '/query?limit=10' })
+  })
+  it('preserves a query on a bare backend', () => {
+    expect(parseProxyRoute('/proxy/default?x=1', '/proxy')).toEqual({ name: 'default', strippedPath: '/?x=1' })
+  })
+  it('returns null for the bare prefix', () => {
+    expect(parseProxyRoute('/proxy', '/proxy')).toBeNull()
+    expect(parseProxyRoute('/proxy/', '/proxy')).toBeNull()
+  })
+  it('does not match a prefix that is only a substring boundary', () => {
+    expect(parseProxyRoute('/proxytest/foo', '/proxy')).toBeNull()
+  })
+  it('supports a custom prefix', () => {
+    expect(parseProxyRoute('/api/proxy/default/query', '/api/proxy')).toEqual({ name: 'default', strippedPath: '/query' })
+  })
+})
 
 describe('buildProxyTarget', () => {
   it('appends path to proxyBase with subpath', () => {

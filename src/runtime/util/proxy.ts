@@ -3,12 +3,13 @@ import { proxyRequest, getQuery, createError } from 'h3'
 import { buildProxyTarget, buildProxyHeaders } from './proxy-route'
 import { traceEnabled, trace } from './log'
 
-// Server-side proxy that forwards requests to a backend service.
-// The backend's configured apikey (if any) is injected as a fallback identity;
-// an authenticated request additionally gets the user's JWT. Callers may also
-// provide their own API key via ?apikey= query param or apikey header, which
-// takes precedence. A backend with no apikey and no token forwards
-// unauthenticated (fails closed on the upstream's terms).
+// Pinned at module load (before any app plugin can wrap globalThis.fetch) so the
+// proxy's outbound request always uses the real fetch and can't be re-credentialed
+// downstream.
+const pinnedFetch = globalThis.fetch
+
+// Forwards a request to a backend, attaching auth headers (see buildProxyHeaders)
+// and stripping the app session cookie.
 export async function proxyHandler (
   event: H3Event,
   proxyBase: string,
@@ -20,7 +21,7 @@ export async function proxyHandler (
   if (!proxyBase) {
     throw createError({
       statusCode: 500,
-      message: '[tlv2-auth] Proxy base URL is not configured for this backend. Set its proxyBase in the defineProxyBackend() registration.'
+      message: '[tlv2-auth] Proxy base URL is not configured for this backend.'
     })
   }
 
@@ -40,6 +41,7 @@ export async function proxyHandler (
   }
 
   return proxyRequest(event, target, {
+    fetch: pinnedFetch,
     fetchOptions: {
       redirect: 'manual'
     },

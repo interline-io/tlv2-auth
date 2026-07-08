@@ -30,7 +30,17 @@ export async function useAuth0Session (event: H3Event): Promise<SessionContext> 
   if (traceEnabled) {
     trace('useAuth0Session — fetching access token for user:', session.user?.sub)
   }
-  const accessToken = await session.getAccessToken()
+  // getAccessToken() rejects on a degraded session (token expired, refresh
+  // failed/absent). Treat that as no token — loggedIn stays true — so callers
+  // fail closed with a clean 401 instead of the SDK rejection surfacing as a 500.
+  let accessToken = ''
+  try {
+    accessToken = await session.getAccessToken()
+  } catch (e) {
+    if (traceEnabled) {
+      trace('useAuth0Session — getAccessToken threw (degraded session):', (e as Error)?.message)
+    }
+  }
   if (traceEnabled) {
     trace('useAuth0Session — accessToken length:', accessToken?.length, 'empty:', !accessToken)
   }

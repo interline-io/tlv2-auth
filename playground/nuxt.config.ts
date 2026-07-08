@@ -4,7 +4,7 @@ export default defineNuxtConfig({
     '@nuxt/devtools',
   ],
 
-  ssr: false,
+  ssr: true,
 
   runtimeConfig: {
     // auth0-nuxt (server-only) — maps from NUXT_AUTH0_*

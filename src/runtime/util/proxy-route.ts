@@ -1,5 +1,23 @@
-// Pure functions for building proxied requests — no framework dependencies.
-// Request-path → backend resolution now lives in ../server/proxy-registry.
+// Pure functions for proxy request routing/building — no framework dependencies.
+
+// Parse `/{prefix}/{name}/rest?query` → { name, strippedPath: '/rest?query' }.
+// Returns null when the path isn't under the prefix with a backend segment.
+export function parseProxyRoute (path: string, prefix: string): { name: string, strippedPath: string } | null {
+  if (!path.startsWith(`${prefix}/`)) {
+    return null
+  }
+  const rest = path.slice(prefix.length + 1)
+  const qIndex = rest.search(/[?#]/)
+  const pathPart = qIndex === -1 ? rest : rest.slice(0, qIndex)
+  const query = qIndex === -1 ? '' : rest.slice(qIndex)
+  const slash = pathPart.indexOf('/')
+  const name = slash === -1 ? pathPart : pathPart.slice(0, slash)
+  if (!name) {
+    return null
+  }
+  const tail = slash === -1 ? '' : pathPart.slice(slash)
+  return { name, strippedPath: (tail || '/') + query }
+}
 
 // Build the target URL from proxyBase and the stripped request path.
 // Throws if the resolved path escapes the proxyBase origin (SSRF) or pathname
@@ -18,14 +36,9 @@ export function buildProxyTarget (proxyBase: string, requestPath: string): strin
   return resolved.toString()
 }
 
-// Build auth headers for the proxied request. A valid user token is exclusive by
-// default: the request is authenticated as that user and no apikey is attached,
-// so the backend can never resolve it to the shared apikey identity. A backend
-// that needs the apikey alongside the token (attribution/quota) opts in via
-// apikeyWithToken. Only a token-less request otherwise gets an apikey — a
-// request-provided one (?apikey= / apikey header) taking precedence over the
-// backend's configured key. When neither a token nor a key is present, no auth
-// header is sent and the backend fails closed.
+// Build auth headers. A valid token is exclusive (Bearer only) unless
+// apikeyWithToken; otherwise a token-less request gets an apikey — a
+// request-supplied one (?apikey= / header) over the backend's — or none.
 export function buildProxyHeaders (
   backendApikey?: string,
   accessToken?: string,

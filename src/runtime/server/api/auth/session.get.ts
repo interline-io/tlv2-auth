@@ -9,8 +9,7 @@ import { traceEnabled, trace, traceUserClaims } from '../../../util/log'
 // is unreachable or returns an error — enrichment is best-effort since the
 // GraphQL backend is optional.
 async function fetchMeData (proxyBase: string, headers: Record<string, string>) {
-  // Use fetch directly (not $fetch) to avoid the auth.server interceptor
-  // which would inject duplicate auth headers
+  // Builds its own auth headers (below), so hit the backend with native fetch.
   const response = await fetch(`${proxyBase}/query`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },

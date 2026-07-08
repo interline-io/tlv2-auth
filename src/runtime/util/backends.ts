@@ -1,4 +1,10 @@
-import type { ProxyBackendConfig } from '../server/proxy-registry'
+// Per-backend proxy config, keyed by name in tlv2proxy.backends.
+export interface ProxyBackendConfig {
+  base: string
+  apikey?: string
+  apikeyWithToken?: boolean
+  requireToken?: boolean
+}
 
 interface ProxyConfig {
   tlv2proxy?: { backends?: Record<string, ProxyBackendConfig> }

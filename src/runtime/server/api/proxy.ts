@@ -1,19 +1,21 @@
 import { defineEventHandler, createError } from 'h3'
+import { useRuntimeConfig } from '#imports'
 import { proxyHandler } from '../../util/proxy'
-import { matchProxyBackend } from '../proxy-registry'
+import { parseProxyRoute } from '../../util/proxy-route'
+import { resolveProxyBackends } from '../../util/backends'
+import { DEFAULT_PROXY_PREFIX } from '../../util/defaults'
 import { useAuth0Session } from '../useSession'
 
-// Dispatches a proxy request to a registered backend, applying that backend's
-// auth policy (apikey injection + requireToken).
+// Dispatches a proxy request to a configured backend (tlv2proxy.backends),
+// applying that backend's auth policy (token-exclusive apikey + requireToken).
 export default defineEventHandler(async (event) => {
-  const matched = matchProxyBackend(event.path || '')
-  if (!matched) {
-    throw createError({
-      statusCode: 404,
-      message: '[tlv2-proxy] No proxy backend registered for this path'
-    })
+  const config = useRuntimeConfig(event)
+  const prefix = config.public?.tlv2proxy?.prefix || DEFAULT_PROXY_PREFIX
+  const route = parseProxyRoute(event.path || '', prefix)
+  const backend = route ? resolveProxyBackends(config)[route.name] : undefined
+  if (!route || !backend?.base) {
+    throw createError({ statusCode: 404, message: '[tlv2-proxy] Unknown proxy backend' })
   }
-  const { backend, strippedPath } = matched
 
   const auth = await useAuth0Session(event)
 
@@ -30,10 +32,10 @@ export default defineEventHandler(async (event) => {
 
   return proxyHandler(
     event,
-    backend.proxyBase,
+    backend.base,
     backend.apikey || '',
     auth.accessToken,
-    strippedPath,
+    route.strippedPath,
     backend.apikeyWithToken
   )
 })

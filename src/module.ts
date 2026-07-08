@@ -144,11 +144,7 @@ export default defineNuxtModule<ModuleOptions>({
       }
     ))
 
-    // Auto-register the configured proxy backends into the registry at startup.
-    addServerPlugin(resolveRuntimeModule('server/plugins/register-proxy-backends'))
-
     // Setup plugins
-    addPlugin(resolveRuntimeModule('plugins/auth.server'))
     addPlugin(resolveRuntimeModule('plugins/auth-enrich.client'))
 
     addImports([
@@ -156,6 +152,7 @@ export default defineNuxtModule<ModuleOptions>({
       { name: 'useLogin', from: resolveRuntimeModule('composables/useLogin') },
       { name: 'useLogout', from: resolveRuntimeModule('composables/useLogout') },
       { name: 'useApiEndpoint', from: resolveRuntimeModule('composables/useApiEndpoint') },
+      { name: 'useProxySsrFetch', from: resolveRuntimeModule('composables/useProxySsrFetch') },
     ])
 
     // Session endpoint for ssr:false apps to fetch user claims client-side
@@ -165,8 +162,12 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolveRuntimeModule('server/api/auth/session.get')
     })
 
-    // The proxy route is opt-in and NOT registered here — a consumer declares
-    // tlv2proxy.backends and mounts its own route re-exporting proxyEventHandler
-    // (see README).
+    // Mount the proxy dispatcher. The module owns the route so the credential
+    // injection, cookie handling, and (Stage 3) CSRF gate live in one place —
+    // no per-consumer wiring. Unconfigured backends 404.
+    addServerHandler({
+      route: `${proxyPrefix}/**`,
+      handler: resolveRuntimeModule('server/api/proxy')
+    })
   }
 })

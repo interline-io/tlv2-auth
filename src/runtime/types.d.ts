@@ -2,7 +2,7 @@
 // auth0-nuxt is installed dynamically via installModule() so its type
 // augmentations aren't visible during `nuxt typecheck` at the module level.
 // We declare the shapes we depend on here.
-import type { ProxyBackendConfig } from './server/proxy-registry'
+import type { ProxyBackendConfig } from './util/backends'
 
 declare module 'nuxt/schema' {
   interface RuntimeConfig {
