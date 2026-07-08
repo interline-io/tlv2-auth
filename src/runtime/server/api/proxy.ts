@@ -20,9 +20,11 @@ export default defineEventHandler(async (event) => {
   const auth = await useAuth0Session(event)
 
   // Fail closed without a usable token so a request never borrows the shared
-  // apikey identity: requireToken backends and any logged-in-but-degraded session
-  // 401. Genuinely anonymous callers still get the apikey fallback where allowed.
-  if (!auth.accessToken && (backend.requireToken || auth.loggedIn)) {
+  // apikey identity: a requireToken backend, a logged-in-but-degraded session, or
+  // an app-wide requireLogin all 401. Genuinely anonymous callers get the apikey
+  // fallback only when the app permits it (requireLogin off, backend not requireToken).
+  const requireLogin = config.public?.tlv2?.requireLogin
+  if (!auth.accessToken && (backend.requireToken || auth.loggedIn || requireLogin)) {
     throw createError({
       statusCode: 401,
       message: auth.loggedIn

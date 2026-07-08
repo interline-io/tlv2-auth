@@ -22,7 +22,10 @@ export function useProxySsrFetch () {
       responseType: 'text',
       ignoreResponseError: true
     })
-    return new Response((res._data as string | undefined) ?? null, {
+    // 101/204/205/304 must have a null body — the Response constructor throws
+    // otherwise, and responseType:'text' yields '' (not nullish) for an empty body.
+    const nullBody = [101, 204, 205, 304].includes(res.status)
+    return new Response(nullBody ? null : ((res._data as string | undefined) ?? null), {
       status: res.status,
       statusText: res.statusText,
       headers: res.headers as unknown as HeadersInit
