@@ -23,11 +23,7 @@
         proxy (<strong>{{ backend }}</strong> backend). The data is in the server-rendered HTML
         (check view-source), and hydration restores it from the payload cache — no client refetch.
       </p>
-      <p v-if="ssrLoading">
-        Loading…
-      </p>
       <pre
-        v-else
         style="margin-top: 0.5rem; background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; max-height: 400px; overflow-y: auto;"
       >{{ ssrError || ssrResult }}</pre>
     </section>
@@ -56,9 +52,9 @@
 <script setup lang="ts">
 import { ref, computed, inject } from 'vue'
 import { gql } from 'graphql-tag'
-import { useQuery, ApolloClients } from '@vue/apollo-composable'
+import { ApolloClients } from '@vue/apollo-composable'
 import type { ApolloClient, NormalizedCacheObject } from '@apollo/client/core/index.js'
-import { useRoute } from '#imports'
+import { useRoute, useAsyncData } from '#imports'
 
 const QUERY = gql`{ me { id name email roles } feeds(limit: 3) { onestop_id } }`
 
@@ -67,15 +63,29 @@ const QUERY = gql`{ me { id name email roles } feeds(limit: 3) { onestop_id } }`
 const route = useRoute()
 const backend = typeof route.query.backend === 'string' && route.query.backend ? route.query.backend : 'default'
 
-// SSR half: useQuery prefetches during server render (ssrMode client +
-// onServerPrefetch), then hydrates from the payload cache.
-const { result, error, loading: ssrLoading } = useQuery(QUERY, null, { clientId: backend })
-const ssrResult = computed(() => result.value ? JSON.stringify(result.value, null, 2) : '(no data)')
-const ssrError = computed(() => error.value ? String(error.value) : '')
+const clients = inject<Record<string, ApolloClient<NormalizedCacheObject>>>(ApolloClients)!
+
+// SSR half: prefetch through the client during server render, catching failures
+// so a strict (requireToken) backend returning 401 while unauthenticated renders
+// the error instead of aborting the render with a 500 — useQuery's server-prefetch
+// rejects on a network error. client.query still populates the InMemoryCache, which
+// the apollo plugin snapshots into the payload for client hydration.
+const { data: ssr } = await useAsyncData(`apollo-ssr:${backend}`, async () => {
+  try {
+    const res = await clients[backend]?.query({ query: QUERY, fetchPolicy: 'network-only', errorPolicy: 'all' })
+    if (!res) {
+      return { data: null, error: `Unknown backend "${backend}"` }
+    }
+    return { data: res.data ?? null, error: res.error ? String(res.error) : null }
+  } catch (e) {
+    return { data: null, error: String(e) }
+  }
+})
+const ssrResult = computed(() => ssr.value?.data ? JSON.stringify(ssr.value.data, null, 2) : '(no data)')
+const ssrError = computed(() => ssr.value?.error || '')
 
 // Client half: a fresh network-only query fired on demand against the
 // page-wide backend, exercising the browser-side path (no SSR involvement).
-const clients = inject<Record<string, ApolloClient<NormalizedCacheObject>>>(ApolloClients)
 const clientResult = ref<string | null>(null)
 const clientLoading = ref(false)
 
@@ -83,7 +93,11 @@ async function runClientQuery () {
   clientLoading.value = true
   clientResult.value = null
   try {
-    const res = await clients![backend]!.query({ query: QUERY, fetchPolicy: 'network-only' })
+    const client = clients[backend]
+    if (!client) {
+      throw new Error(`Unknown backend "${backend}"`)
+    }
+    const res = await client.query({ query: QUERY, fetchPolicy: 'network-only' })
     clientResult.value = JSON.stringify(res.data, null, 2)
   } catch (e) {
     clientResult.value = String(e)
