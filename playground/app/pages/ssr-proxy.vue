@@ -17,7 +17,7 @@ const { data: result, error } = await useAsyncData('ssr-proxy', async () => {
   const res = await proxyFetch('/proxy/default/query', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ query: '{ feeds(limit: 3) { onestop_id } }' })
+    body: JSON.stringify({ query: '{ me { id name email roles } feeds { onestop_id } }' })
   }) as any
   return { status: res.status, body: res._data }
 })
