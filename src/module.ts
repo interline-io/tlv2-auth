@@ -171,9 +171,12 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolveRuntimeModule('server/api/auth/session.get')
     })
 
+    // Log the resolved proxy backends once at server startup (no secrets).
+    addServerPlugin(resolveRuntimeModule('server/plugins/log-proxy-backends'))
+
     // Mount the proxy dispatcher. The module owns the route so the credential
-    // injection, cookie handling, and (Stage 3) CSRF gate live in one place —
-    // no per-consumer wiring. Unconfigured backends 404.
+    // injection, cookie handling, and CSRF gate live in one place — no
+    // per-consumer wiring. Unconfigured backends 404.
     addServerHandler({
       route: `${proxyPrefix}/**`,
       handler: resolveRuntimeModule('server/api/proxy')
