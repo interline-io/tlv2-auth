@@ -3,14 +3,17 @@ import { defu } from 'defu'
 import { DEFAULT_AUTH_PREFIX, DEFAULT_PROXY_PREFIX, AUTH0_PLACEHOLDER_DOMAIN } from './runtime/util/defaults'
 
 export interface ModuleOptions {
-  /** Enable the API proxy. Default: false */
-  proxyEnabled?: boolean
-  proxyBase?: string | Record<string, string>
   requireLogin?: boolean
   loginGate?: boolean
   /** URL prefix for auth routes (login, logout, session). Default: '/auth' */
   authPrefix?: string
-  /** URL prefix for the proxy route. Default: '/proxy' */
+  /**
+   * Mount the API proxy at `proxyPrefix`. Off by default — the proxy injects
+   * server-side credentials, so it must be explicitly opted into (and backends
+   * configured) to be reachable.
+   */
+  proxyEnabled?: boolean
+  /** URL prefix for proxy requests. Default: '/proxy' */
   proxyPrefix?: string
   /**
    * Derive auth0 appBaseUrl from the request Host header instead of using
@@ -38,9 +41,9 @@ export default defineNuxtModule<ModuleOptions>({
     }
   },
   defaults: {
-    proxyEnabled: false,
     requireLogin: false,
     loginGate: false,
+    proxyEnabled: false,
     authPrefix: DEFAULT_AUTH_PREFIX,
     proxyPrefix: DEFAULT_PROXY_PREFIX,
     autoAppBaseUrl: false,
@@ -52,17 +55,10 @@ export default defineNuxtModule<ModuleOptions>({
     const authPrefix = normalizePrefix(options.authPrefix!)
     const proxyPrefix = normalizePrefix(options.proxyPrefix!)
 
-    // Auth via auth0-nuxt (server-side sessions with HTTP-only cookies).
-    // Always installed at build time so auth0 credentials are purely a runtime
-    // concern (NUXT_AUTH0_* env vars). When credentials are absent at runtime
-    // (e.g. automated browser tests), the auth middleware no-ops and all users
-    // are treated as anonymous — the proxy and other features still work.
-    //
-    // auth0-nuxt's server plugin validates that domain/clientId/clientSecret/
-    // appBaseUrl/sessionSecret are non-empty at startup. When no clientId is
-    // provided, we seed all auth0 config with placeholders so the server can
-    // start without auth. This is all-or-nothing to avoid a partial state
-    // where some values are real and others are placeholders.
+    // Auth via auth0-nuxt (server-side sessions). Always installed so auth0
+    // config is purely a runtime concern (NUXT_AUTH0_*). With no clientId at
+    // runtime, seed all auth0 fields with placeholders (all-or-nothing) so the
+    // server starts unauthenticated and treats everyone as anonymous.
     const { randomBytes } = await import('node:crypto')
     // Register `audience` in the runtimeConfig schema so that consuming apps
     // can set NUXT_AUTH0_AUDIENCE without a type error.  auth0-nuxt's module
@@ -116,14 +112,18 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolveRuntimeModule('server/middleware/auth0')
     })
 
-    // Private runtime options (server-side only)
+    // Private per-backend proxy config (base + apikey + policy, keyed by name).
+    // The `default` backend also serves /auth/session enrichment and SSR injection.
     Object.assign(nuxt.options.runtimeConfig, defu(nuxt.options.runtimeConfig, {
+      tlv2proxy: {
+        backends: {},
+      },
+      // Legacy migration bridge (see resolveProxyBackends); only `default` binds
+      // via env, so consumers with more backends declare them in tlv2proxy.backends.
       tlv2: {
         graphqlApikey: '',
-        proxyBase: typeof options.proxyBase === 'string'
-          ? { default: options.proxyBase }
-          : (options.proxyBase || {}),
-      }
+        proxyBase: { default: '' },
+      },
     }))
 
     // Public runtime options (available on both server and client)
@@ -134,13 +134,14 @@ export default defineNuxtModule<ModuleOptions>({
           loginGate: options.loginGate,
           requireLogin: options.requireLogin,
           authPrefix,
-          proxyPrefix,
+        },
+        tlv2proxy: {
+          prefix: proxyPrefix,
         }
       }
     ))
 
     // Setup plugins
-    addPlugin(resolveRuntimeModule('plugins/auth.server'))
     addPlugin(resolveRuntimeModule('plugins/auth-enrich.client'))
 
     addImports([
@@ -148,6 +149,7 @@ export default defineNuxtModule<ModuleOptions>({
       { name: 'useLogin', from: resolveRuntimeModule('composables/useLogin') },
       { name: 'useLogout', from: resolveRuntimeModule('composables/useLogout') },
       { name: 'useApiEndpoint', from: resolveRuntimeModule('composables/useApiEndpoint') },
+      { name: 'useProxySsrFetch', from: resolveRuntimeModule('composables/useProxySsrFetch') },
     ])
 
     // Session endpoint for ssr:false apps to fetch user claims client-side
@@ -157,8 +159,12 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolveRuntimeModule('server/api/auth/session.get')
     })
 
-    // Proxy — only registered when explicitly enabled.
+    // Mount the proxy only when explicitly enabled — it injects server-side
+    // credentials, so legacy env vars alone must not expose it. Anti-abuse gating
+    // is the consuming app's job (see PROXY.md); unconfigured backends 404.
     if (options.proxyEnabled) {
+      // Log the resolved proxy backends once at server startup (no secrets).
+      addServerPlugin(resolveRuntimeModule('server/plugins/log-proxy-backends'))
       addServerHandler({
         route: `${proxyPrefix}/**`,
         handler: resolveRuntimeModule('server/api/proxy')

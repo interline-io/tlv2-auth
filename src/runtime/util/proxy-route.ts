@@ -1,40 +1,44 @@
-// Pure functions for proxy route parsing — no framework dependencies.
+// Pure functions for proxy request routing/building — no framework dependencies.
 
-const prefixReCache = new Map<string, RegExp>()
-function getPrefixRe (prefix: string): RegExp {
-  let re = prefixReCache.get(prefix)
-  if (!re) {
-    const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    re = new RegExp(`^${escaped}/([^/]+)`)
-    prefixReCache.set(prefix, re)
-  }
-  return re
-}
-
-// Extract backend name from proxy path: /{prefix}/{backend}/...
-// The prefix defaults to '/proxy' but is configurable via module options.
-// Returns null if the path doesn't match the expected pattern.
-export function parseProxyRoute (path: string, prefix: string = '/proxy'): { backendName: string, strippedPath: string } | null {
-  const re = getPrefixRe(prefix)
-  const match = path.match(re)
-  if (!match) {
+// Parse `/{prefix}/{name}/rest?query` → { name, strippedPath: '/rest?query' }.
+// Returns null when the path isn't under the prefix with a backend segment.
+export function parseProxyRoute (path: string, prefix: string): { name: string, strippedPath: string } | null {
+  if (!path.startsWith(`${prefix}/`)) {
     return null
   }
-  const backendName = match[1]!
-  const strippedPath = path.replace(re, '') || '/'
-  return { backendName, strippedPath }
+  const rest = path.slice(prefix.length + 1)
+  const qIndex = rest.search(/[?#]/)
+  const pathPart = qIndex === -1 ? rest : rest.slice(0, qIndex)
+  const query = qIndex === -1 ? '' : rest.slice(qIndex)
+  const slash = pathPart.indexOf('/')
+  const name = slash === -1 ? pathPart : pathPart.slice(0, slash)
+  if (!name) {
+    return null
+  }
+  const tail = slash === -1 ? '' : pathPart.slice(slash)
+  return { name, strippedPath: (tail || '/') + query }
 }
 
-// Resolve the backend name to a proxyBase URL, or null if unknown.
-export function resolveProxyBase (
-  backendName: string,
-  proxyBases: Record<string, string>
-): string | null {
-  return proxyBases[backendName] || null
+// Remove the `apikey` query param from a path+query string. Its value is
+// captured and re-applied as a header when policy allows (see buildProxyHeaders),
+// so it must never also ride the forwarded URL.
+export function stripApikeyParam (pathAndQuery: string): string {
+  const q = pathAndQuery.indexOf('?')
+  if (q === -1) {
+    return pathAndQuery
+  }
+  const params = new URLSearchParams(pathAndQuery.slice(q + 1))
+  if (!params.has('apikey')) {
+    return pathAndQuery
+  }
+  params.delete('apikey')
+  const rest = params.toString()
+  return rest ? `${pathAndQuery.slice(0, q)}?${rest}` : pathAndQuery.slice(0, q)
 }
 
 // Build the target URL from proxyBase and the stripped request path.
-// Throws if the resolved path escapes the proxyBase pathname (path traversal).
+// Throws if the resolved path escapes the proxyBase origin (SSRF) or pathname
+// (path traversal).
 export function buildProxyTarget (proxyBase: string, requestPath: string): string {
   const proxyBaseUrl = new URL(proxyBase)
   const proxyBasePathname = proxyBaseUrl.pathname === '/' ? '' : proxyBaseUrl.pathname
@@ -49,19 +53,25 @@ export function buildProxyTarget (proxyBase: string, requestPath: string): strin
   return resolved.toString()
 }
 
-// Build auth headers for the proxied request.
+// Build auth headers. A valid token is exclusive (Bearer only) unless
+// apikeyWithToken; otherwise a token-less request gets an apikey — a
+// request-supplied one (?apikey= / header) over the backend's — or none.
 export function buildProxyHeaders (
-  graphqlApikey: string,
+  backendApikey?: string,
   accessToken?: string,
-  requestApikey?: string
+  requestApikey?: string,
+  apikeyWithToken?: boolean
 ): Record<string, string> {
   const headers: Record<string, string> = {}
-  const apikey = requestApikey || graphqlApikey
-  if (apikey) {
-    headers.apikey = apikey
-  }
   if (accessToken) {
     headers.authorization = `Bearer ${accessToken}`
+    if (!apikeyWithToken) {
+      return headers
+    }
+  }
+  const apikey = requestApikey || backendApikey
+  if (apikey) {
+    headers.apikey = apikey
   }
   return headers
 }
