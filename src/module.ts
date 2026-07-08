@@ -159,6 +159,7 @@ export default defineNuxtModule<ModuleOptions>({
     ))
 
     // Setup plugins
+    addPlugin(resolveRuntimeModule('plugins/auth-enrich.server'))
     addPlugin(resolveRuntimeModule('plugins/auth-enrich.client'))
 
     addImports([

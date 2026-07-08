@@ -35,9 +35,6 @@ export async function useAuth0Session (event: H3Event): Promise<SessionContext> 
   // session — never fabricates a login — so it cannot grant access.
   if (import.meta.dev) {
     const sim = getCookie(event, 'tlv2_debug_auth')
-    if (sim === 'anonymous') {
-      return anonymousSession()
-    }
     if (sim === 'degraded' || sim === 'degraded-once') {
       // 'degraded-once' self-clears so the follow-up re-auth recovers cleanly;
       // 'degraded' is sticky so the recovery-failed → logout path is observable.

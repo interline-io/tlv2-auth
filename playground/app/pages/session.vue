@@ -95,14 +95,14 @@
         </div>
 
         <div class="sim">
-          <button @click="setSim('anonymous')">
-            Anonymous
+          <button @click="logoutLocal()">
+            Anonymous (local logout)
           </button>
           <p style="color: #555; margin: 0.35rem 0 0;">
-            Sets <code>tlv2_debug_auth=anonymous</code>. The server reports
-            <strong>no session at all</strong>, ignoring your real session cookie.
-            Simulates a fully signed-out user server-side (no recovery — there was
-            never a token to lose).
+            No server-side simulation — this runs a real <strong>local logout</strong>:
+            clears the <code>__a0_session</code> cookie and redirects to <code>/</code>,
+            leaving you genuinely signed out. The auth0 SSO session is kept, so
+            re-login is silent.
           </p>
         </div>
 
@@ -122,11 +122,17 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useUser, useLogin, useLogout } from '#imports'
+import { useUser, useLogin, useLogout, useLogoutLocal } from '#imports'
 
 const user = useUser()
 const login = () => useLogin(null)
 const logout = () => useLogout()
+
+function logoutLocal () {
+  document.cookie = 'tlv2_debug_auth=; path=/; max-age=0'
+  sessionStorage.removeItem('tlv2_reauth_attempts')
+  return useLogoutLocal()
+}
 
 const debugSim = ref('')
 const reauthGuard = ref('')

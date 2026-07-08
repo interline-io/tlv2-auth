@@ -11,9 +11,21 @@ const plugin: Plugin = defineNuxtPlugin(() => {
   addRouteMiddleware('auth-enrich', async () => {
     const auth0User = useState<Record<string, any> | undefined>('auth0_user')
     const lastChecked = useState<number>('tlv2_auth_last_checked', () => 0)
+    const ssrEnriched = useState<boolean>('tlv2_ssr_enriched', () => false)
+
+    const now = Date.now()
+
+    // Roles were enriched during SSR and are already in the payload (see
+    // auth-enrich.server) — adopt them and skip the fetch so they don't flash.
+    // Consume the flag; later SPA navigations fall through to the freshness-
+    // gated re-check below.
+    if (ssrEnriched.value) {
+      ssrEnriched.value = false
+      lastChecked.value = now
+      return
+    }
 
     // Check freshness — skip if recently checked
-    const now = Date.now()
     if (lastChecked.value && (now - lastChecked.value) < RECHECK_INTERVAL) {
       return
     }
