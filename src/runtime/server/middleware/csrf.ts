@@ -10,13 +10,15 @@ export default defineEventHandler(async (event) => {
   const secret = csrfSecret(useRuntimeConfig(event))
   if (!secret) return
   let token = getCookie(event, CSRF_COOKIE)
-  const valid = token ? await verifyCsrfToken(token, secret) : false
-  if (!valid) {
-    token = undefined
-    // Mint only on HTML navigations — a Set-Cookie on asset/proxy responses
-    // would defeat their caching and isn't needed there.
+  if (!token || !(await verifyCsrfToken(token, secret))) {
+    // Always mint a token for this request's server-side use (the SSR loopback
+    // presents it), so anonymous renders work even for crawlers/curl that don't
+    // advertise text/html. Persist it to the browser only on document loads — a
+    // Set-Cookie on asset/proxy responses would defeat their caching. This is
+    // context-only for non-document requests: it never reaches the client and
+    // the gate reads the request's own cookie/header, so tokenless callers 403.
+    token = await issueCsrfToken(secret)
     if ((getHeader(event, 'accept') || '').includes('text/html')) {
-      token = await issueCsrfToken(secret)
       setCookie(event, CSRF_COOKIE, token, {
         httpOnly: true,
         secure: !import.meta.dev,
@@ -26,5 +28,5 @@ export default defineEventHandler(async (event) => {
       })
     }
   }
-  event.context.tlv2Csrf = token || ''
+  event.context.tlv2Csrf = token
 })
