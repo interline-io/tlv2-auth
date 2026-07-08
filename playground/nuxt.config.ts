@@ -21,7 +21,7 @@ export default defineNuxtConfig({
     tlv2proxy: {
       backends: {
         default: { base: 'https://api.transit.land/api/v2', apikey: '' },
-        stationEditor: { base: 'https://api.transit.land/api/v2', requireToken: true },
+        stationEditor: { base: 'https://saas.transit.land/api/v2', requireToken: true },
       },
     },
     public: {
