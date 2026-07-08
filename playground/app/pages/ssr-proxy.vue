@@ -18,7 +18,7 @@ const { data: result, error } = await useAsyncData('ssr-proxy', async () => {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ query: '{ me { id name email roles } feeds { onestop_id } }' })
-  }) as any
-  return { status: res.status, body: res._data }
+  })
+  return { status: res.status, body: await res.json().catch(() => null) }
 })
 </script>

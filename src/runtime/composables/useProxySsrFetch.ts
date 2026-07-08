@@ -11,7 +11,7 @@ export function useProxySsrFetch () {
   const event = useRequestEvent()
   const reqCookie = (event && getRequestHeader(event, 'cookie')) || ''
   const csrf = (event?.context?.tlv2Csrf as string) || ''
-  return (input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> => {
+  return async (input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
     const headers = new Headers(init.headers || {})
     // Carry the token issued for this render as both cookie and double-submit
@@ -19,13 +19,21 @@ export function useProxySsrFetch () {
     // the loopback clears the same gate as browser traffic.
     headers.set('cookie', withCsrfCookie(reqCookie, csrf))
     if (csrf) headers.set(CSRF_HEADER, csrf)
-    // $fetch.raw returns a Response-compatible object; ignoreResponseError so a
-    // 401/404 comes back as a response the caller can read, not a throw.
-    return $fetch.raw(url, {
+    // Return a genuine Response (not ofetch's parsed FetchResponse) so data
+    // clients like Apollo can call .text()/.json() on it. responseType:'text'
+    // keeps the raw body; ignoreResponseError surfaces 4xx/5xx as a readable
+    // response rather than a throw.
+    const res = await $fetch.raw(url, {
       method: init.method as never,
       body: init.body as BodyInit | undefined,
       headers,
+      responseType: 'text',
       ignoreResponseError: true
-    }) as unknown as Promise<Response>
+    })
+    return new Response((res._data as string | undefined) ?? null, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: res.headers as unknown as HeadersInit
+    })
   }
 }
