@@ -81,13 +81,11 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useUser, useLogin, useLogout, useApiEndpoint, useCsrf } from '#imports'
+import { useUser, useLogin, useLogout, useApiEndpoint } from '#imports'
 
 const user = useUser()
 const login = () => useLogin(null)
 const logout = () => useLogout()
-
-const { token: csrfToken, headerName: csrfHeader } = useCsrf()
 
 const sessionResult = ref<string | null>(null)
 const sessionStatus = ref<number | null>(null)
@@ -127,7 +125,7 @@ async function runProxyQuery () {
     const url = useApiEndpoint('/query', client.value)
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', [csrfHeader]: csrfToken.value },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: proxyQuery.value })
     })
     proxyStatus.value = response.status

@@ -111,12 +111,6 @@ export default defineNuxtModule<ModuleOptions>({
       middleware: true,
       handler: resolveRuntimeModule('server/middleware/auth0')
     })
-    // Issues the signed double-submit CSRF cookie on document loads; the proxy
-    // handler enforces the gate.
-    addServerHandler({
-      middleware: true,
-      handler: resolveRuntimeModule('server/middleware/csrf')
-    })
 
     // Private runtime options (server-side only). tlv2proxy.backends is the
     // per-backend directory (base + apikey + policy, keyed by backend name); the
@@ -152,8 +146,6 @@ export default defineNuxtModule<ModuleOptions>({
 
     // Setup plugins
     addPlugin(resolveRuntimeModule('plugins/auth-enrich.client'))
-    // Seeds the CSRF token into the SSR payload for useCsrf().
-    addPlugin(resolveRuntimeModule('plugins/csrf'))
 
     addImports([
       { name: 'useUser', from: resolveRuntimeModule('composables/useUser') },
@@ -161,7 +153,6 @@ export default defineNuxtModule<ModuleOptions>({
       { name: 'useLogout', from: resolveRuntimeModule('composables/useLogout') },
       { name: 'useApiEndpoint', from: resolveRuntimeModule('composables/useApiEndpoint') },
       { name: 'useProxySsrFetch', from: resolveRuntimeModule('composables/useProxySsrFetch') },
-      { name: 'useCsrf', from: resolveRuntimeModule('composables/useCsrf') },
     ])
 
     // Session endpoint for ssr:false apps to fetch user claims client-side

@@ -39,7 +39,6 @@ declare module 'nuxt/schema' {
 declare module 'h3' {
   interface H3EventContext {
     auth0Disabled: boolean
-    tlv2Csrf: string
   }
 }
 

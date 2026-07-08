@@ -2,8 +2,8 @@
 
 The module mounts a same-origin proxy that forwards browser requests to a
 backend API, injecting server-side credentials the browser never sees. It owns
-the route, the credential policy, and the CSRF/anti-abuse gate in one place —
-consumers configure backends and make same-origin requests; nothing else.
+the route and the credential policy — consumers configure backends and make
+same-origin requests; nothing else.
 
 ## Why proxy at all
 
@@ -77,82 +77,59 @@ single-word names to avoid the ambiguity.
 The `default` backend is special: it also serves the `/auth/session` `me`
 enrichment (roles) and is the target for SSR data fetches.
 
-## Security: CSRF + anti-abuse
+## Security model
 
-A same-origin proxy is a confused deputy — it holds the apikey and will attach it
-for any caller. Two things have to be true: another site must not be able to ride
-a logged-in user's session (**CSRF**), and a random script must not be able to
-spray the endpoint to borrow the apikey (**anti-abuse**). Both are handled by a
-signed double-submit token, checked per request.
+The module enforces the **credential policy**: token-exclusive injection,
+`requireToken` fail-closed, degraded-session 401s, and session-cookie stripping
+(the auth0 cookie never reaches an upstream). Cross-site request forgery
+against the session is covered by the session cookie's `SameSite=Lax`: another
+origin's fetch/form-POST doesn't carry it, so nobody can ride a logged-in
+user's session through the proxy.
 
-**The token.** A random nonce plus an HMAC signature (keyed on the auth0 session
-secret, domain-separated). The signature is what makes it *unforgeable*: a valid
-token proves the server issued it — i.e. the caller loaded a page — which is the
-anti-abuse floor. It is delivered to the browser as the `tlv2_csrf` cookie
-(`HttpOnly`, `Secure` in production, `SameSite=Lax`), issued on document loads.
+What the module deliberately does **not** provide is an anti-abuse gate. For a
+backend with `requireToken`, none is needed — the JWT is already checked on
+every request. The remaining concern applies only to a backend configured with
+an anonymous fallback `apikey`: any script can hit the proxy and borrow that
+key's identity. Whether and how to add friction there is the consuming app's
+decision, because only the app knows which backends carry a key and what its
+abuse cost is.
 
-**The gate** ([`server/api/proxy.ts`](src/runtime/server/api/proxy.ts)) is
-method-aware:
-
-| Method | Requirement |
-|--------|-------------|
-| Safe (`GET`/`HEAD`/`OPTIONS`) | A validly-signed `tlv2_csrf` cookie. |
-| Unsafe (`POST`/`PUT`/`PATCH`/`DELETE`) | The cookie **and** a matching `x-csrf-token` header (double-submit). |
-
-Why the split:
-
-- The **cookie is required on every method** — that's the anti-abuse floor. A
-  tokenless `curl` (any method) has no signed cookie → 403. To get one you must
-  load a page.
-- The **header is required only on unsafe methods** — that's the CSRF ceiling.
-  The header is the half a cross-origin attacker can't produce (same-origin
-  policy stops them reading the token; `SameSite=Lax` keeps the cookie off their
-  cross-site requests). Mutations always go through `fetch`, which can set it.
-- **Safe methods skip the header** because they have to: a feed-version download
-  (`<a href download>`), a map tile, a plain link — these are browser
-  *navigations/subresources* that physically cannot carry a custom header. They
-  ride the cookie, which the browser attaches automatically same-origin. This is
-  the same line Django/Rails/most CSRF middleware draw (`GET`/`HEAD`/`OPTIONS`
-  exempt), and it doesn't weaken `POST` protection.
-
-The token is *not* a session secret — exposing it to same-origin JS is expected
-(that's how the header gets set). What must never leak is the auth0 session
-cookie, which stays `HttpOnly` and is never forwarded upstream.
+The pattern we recommend for that case: on document loads, issue a short-lived
+signed token (nonce + expiry + HMAC) as a JS-readable `SameSite=Lax` cookie;
+gate apikey-carrying proxy backends on it in a server middleware (cookie alone
+for safe methods — navigations can't set headers — cookie + matching header
+for unsafe methods); mark in-process SSR fetches with a per-boot secret so the
+server's own loopback traffic passes. Scripted abuse then requires re-visiting
+a page whenever the token expires, which is where rate limiting and bot
+detection live.
 
 ## Client usage
 
-Build same-origin URLs with `useApiEndpoint(path, backend)`:
+App code needs **no proxy awareness**: use plain `fetch`/`$fetch` against
+same-origin URLs from `useApiEndpoint(path, backend)`.
 
 ```ts
 const url = useApiEndpoint('/query', 'default')   // "/proxy/default/query"
-```
-
-**GET (downloads, links, tiles)** — nothing to add; the cookie rides along:
-
-```ts
-// A feed-version download link just works — the cookie is attached automatically.
-<a :href="useApiEndpoint('/rest/feed_versions/' + key + '/download', 'default')" download>
-```
-
-**POST (queries, mutations)** — echo the CSRF header via `useCsrf()`:
-
-```ts
-const { token, headerName } = useCsrf()
-await fetch(useApiEndpoint('/query', 'default'), {
+await fetch(url, {
   method: 'POST',
-  headers: { 'content-type': 'application/json', [headerName]: token.value },
+  headers: { 'content-type': 'application/json' },
   body: JSON.stringify({ query }),
 })
 ```
 
-**MapLibre** — tiles fetch in a web worker, so headers can only be added in
-`transformRequest` (main thread). Same-origin proxy tiles are GET, so the cookie
-is enough:
+**GET (downloads, links, tiles)** — plain links and navigations work as-is:
+
+```ts
+<a :href="useApiEndpoint('/rest/feed_versions/' + key + '/download', 'default')" download>
+```
+
+**MapLibre** — same-origin proxy tiles fetch in a web worker; make sure the
+worker request sends cookies (needed if the app adds a cookie-based gate):
 
 ```ts
 transformRequest: (url, resourceType) => {
   if (resourceType === 'Tile' && url.startsWith(sameOriginProxyBase)) {
-    return { url, credentials: 'include' }   // GET → cookie only, no header
+    return { url, credentials: 'include' }
   }
 }
 ```
@@ -162,10 +139,16 @@ fully external tile server with its own key in the URL, set nothing.
 
 ## SSR usage
 
-During server render there's no browser to carry cookies, so a data client
-(e.g. Apollo) must loop back through the proxy in-process. `useProxySsrFetch()`
-returns a `fetch` that does this — it forwards the request cookie so the proxy
-resolves the session, and carries the CSRF token so it clears the same gate:
+SSR data requests go through the same proxy, over the in-process loopback —
+only the proxy ever talks to the upstream API. App code again needs no proxy
+awareness: `$fetch`/`useFetch` against a `useApiEndpoint(...)` path dispatch
+in-process. Session auth comes from the forwarded cookie:
+`useFetch`/`useRequestFetch` forward it automatically; bare `$fetch` does not
+(those requests are anonymous).
+
+For data clients that need the genuine fetch/`Response` contract (e.g. Apollo
+links), use `useProxySsrFetch()` — it loops back in-process and forwards the
+request cookie so the render is authenticated as the requesting user:
 
 ```ts
 const proxyFetch = useProxySsrFetch()   // server-only
@@ -176,26 +159,19 @@ const res = await proxyFetch('/proxy/default/query', {
 })
 ```
 
-**Anonymous SSR works.** The loopback is trusted server traffic — the middleware
-always mints a valid token into the request context for it, so a fully
-anonymous render (Googlebot, link unfurlers, `curl`, health checks) succeeds even
-when the client never sent a cookie. External callers are unaffected: the gate
-reads the request's own cookie/header, never the context, so a direct anonymous
-`POST /proxy/...` still 403s.
+Native `fetch` cannot take a relative URL on the server, so bare
+`fetch(useApiEndpoint(...))` in shared code must go through `useProxySsrFetch`
+(or `$fetch`) on the SSR side.
 
-### Rendering modes
-
-The client token is currently delivered through the **SSR payload** (`useCsrf()`
-reads it from server-render state). This covers SSR apps. A pure SPA
-(`ssr: false`) has no payload, so `useCsrf()` would return an empty token and
-unsafe-method requests would 403 — see the README's open items.
+**Anonymous SSR works.** A fully anonymous render (Googlebot, link unfurlers,
+`curl`, health checks) succeeds — the loopback carries no credentials and the
+proxy applies each backend's own policy (apikey fallback or `requireToken`
+401).
 
 ## Reference
 
 | Thing | Value |
 |-------|-------|
 | Proxy prefix (default) | `/proxy` (`proxyPrefix` option) |
-| CSRF cookie | `tlv2_csrf` (`HttpOnly`, `Secure` in prod, `SameSite=Lax`) |
-| CSRF header | `x-csrf-token` |
 | Backend env var | `NUXT_TLV2PROXY_BACKENDS_<NAME>_<FIELD>` |
-| Composables | `useApiEndpoint`, `useCsrf`, `useProxySsrFetch` |
+| Composables | `useApiEndpoint`, `useProxySsrFetch` |

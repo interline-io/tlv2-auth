@@ -5,13 +5,12 @@ Nuxt 4 module providing authentication and API proxying for Transitland v2 appli
 ## Features
 
 - Server-side Auth0 sessions (always bundled; gracefully disabled at runtime when credentials are absent)
-- Same-origin API proxy with per-backend credential policy (token-exclusive apikey injection, `requireToken` fail-closed) — the module mounts and secures the route itself
-- Signed double-submit CSRF + anti-abuse gate on the proxy, method-aware
-- SSR data fetching via an in-process loopback (`useProxySsrFetch`), safe for fully anonymous renders
+- Same-origin API proxy with per-backend credential policy (token-exclusive apikey injection, `requireToken` fail-closed) — the module mounts the route itself
+- Transparent for app code: plain `fetch`/`$fetch` against proxy paths work on both client and SSR (in-process loopback; only the proxy talks to the upstream)
 - Session enrichment with roles from a GraphQL `me` endpoint
-- Composables: `useUser`, `useLogin`, `useLogout`, `useApiEndpoint`, `useCsrf`, `useProxySsrFetch`
+- Composables: `useUser`, `useLogin`, `useLogout`, `useApiEndpoint`, `useProxySsrFetch`
 
-See [PROXY.md](PROXY.md) for the full proxy model — credential policy, CSRF, and client/SSR usage.
+See [PROXY.md](PROXY.md) for the full proxy model — credential policy, security model, and client/SSR usage.
 
 ## Install
 
@@ -108,7 +107,7 @@ tlv2proxy: {
 
 Supply secrets via `NUXT_TLV2PROXY_BACKENDS_<NAME>_<FIELD>` (e.g. `NUXT_TLV2PROXY_BACKENDS_DEFAULT_APIKEY`). The `default` backend also serves `/auth/session` `me` enrichment and SSR data fetches.
 
-**[PROXY.md](PROXY.md) documents the rest** — the credential rules (token-exclusive apikey, `requireToken`, `apikeyWithToken`), the CSRF/anti-abuse gate, and how to call the proxy from client code, MapLibre, and SSR.
+**[PROXY.md](PROXY.md) documents the rest** — the credential rules (token-exclusive apikey, `requireToken`, `apikeyWithToken`), the security model (including the recommended anti-abuse gate pattern for apps that configure an anonymous apikey), and how to call the proxy from client code, MapLibre, and SSR.
 
 ### Migration
 
@@ -121,18 +120,13 @@ Auto-imported by Nuxt; explicit imports are recommended for type safety.
 - `useUser()` — current user state (`loggedIn`, `id`, `name`, `email`, `roles`, `hasRole()`)
 - `useLogin(targetUrl)` — redirect to Auth0 login, return to `targetUrl` after
 - `useLogout()` — redirect to Auth0 logout
-- `useApiEndpoint(path, backend)` — build a same-origin proxy URL (`/{proxyPrefix}/{backend}{path}`)
-- `useCsrf()` — `{ token, headerName }` to echo on unsafe-method (POST/…) proxy requests; safe GETs don't need it. See [PROXY.md](PROXY.md#client-usage)
-- `useProxySsrFetch()` — server-only `fetch` that loops back through the proxy in-process for SSR data clients (e.g. Apollo)
+- `useApiEndpoint(path, backend)` — build a same-origin proxy URL (`/{proxyPrefix}/{backend}{path}`); plain `fetch`/`$fetch` against it just work
+- `useProxySsrFetch()` — server-only `fetch` (genuine `Response` contract) that loops back through the proxy in-process, authenticated as the requesting user; for SSR data clients like Apollo
 
 ```ts
 import { useUser, useApiEndpoint } from '@interline-io/tlv2-auth/composables'
 import type { TlUser } from '@interline-io/tlv2-auth/composables'
 ```
-
-## Open items
-
-- **`ssr: false` CSRF.** The client CSRF token is delivered via the SSR payload, so `useCsrf()` returns it only after a server render. A pure SPA consumer would get an empty token and unsafe-method proxy requests would 403. Delivering the token via a JS-readable cookie (or a fetch endpoint) is needed to support `ssr: false`.
 
 ## Development
 
