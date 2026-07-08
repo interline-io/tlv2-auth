@@ -1,14 +1,9 @@
-// Pure function to merge GraphQL `me` response into auth0 user claims.
+// Attach the GraphQL `me` response to the user's claims under tlv2_me;
+// useUser derives id/name/email/roles/external_data from it.
 export function enrichUserClaims (
   user: Record<string, any>,
-  meData: { id?: string, name?: string, email?: string, roles?: string[] } | null
+  meData: Record<string, any> | null
 ): Record<string, any> {
   if (!meData) { return user }
-  return {
-    ...user,
-    tlv2_id: meData.id || '',
-    tlv2_name: meData.name || '',
-    tlv2_email: meData.email || '',
-    tlv2_roles: meData.roles || []
-  }
+  return { ...user, tlv2_me: meData }
 }

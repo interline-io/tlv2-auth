@@ -1,59 +1,66 @@
 import type { Plugin } from '#app'
 import { defineNuxtPlugin, addRouteMiddleware, useState, useRuntimeConfig } from '#imports'
 import { useLogin } from '../composables/useLogin'
+import { useLogoutLocal } from '../composables/useLogoutLocal'
 import { DEFAULT_AUTH_PREFIX } from '../util/defaults'
 
-const RECHECK_INTERVAL = 600_000
+const REAUTH_KEY = 'tlv2_reauth_attempts'
 
 const plugin: Plugin = defineNuxtPlugin(() => {
   addRouteMiddleware('auth-enrich', async () => {
-    const auth0User = useState<Record<string, any> | undefined>('auth0_user')
-    const lastChecked = useState<number>('tlv2_auth_last_checked', () => 0)
-
-    // Check freshness — skip if recently checked
-    const now = Date.now()
-    if (lastChecked.value && (now - lastChecked.value) < RECHECK_INTERVAL) {
+    // Resolve auth state once per page load (SSR seeds it, or we fetch below);
+    // a reload picks up new roles or a changed session. Roles are UI-gating only
+    // — the server enforces real permissions — so a stale view until reload is fine.
+    const resolved = useState<boolean>('tlv2_auth_resolved', () => false)
+    if (resolved.value) {
       return
     }
 
-    // On first client-side run, if auth0-nuxt already populated auth0_user
-    // during SSR but without roles, we still need to fetch the session
-    // endpoint to get roles. However, if auth0_user already has tlv2_roles
-    // (e.g. from a prior enrichment that survived hydration), skip the fetch.
-    const needsFetch = !auth0User.value || !auth0User.value.tlv2_roles
-    if (needsFetch) {
-      try {
-        const config = useRuntimeConfig()
-        const authPrefix = config.public.tlv2?.authPrefix || DEFAULT_AUTH_PREFIX
-        const session = await $fetch(`${authPrefix}/session`)
-        auth0User.value = session || undefined
-      } catch (e) {
-        console.warn('[tlv2-auth] Failed to fetch session:', e)
-      }
+    const auth0User = useState<Record<string, any> | undefined>('auth0_user')
+    const me = useState<Record<string, any> | undefined>('tlv2_user_me', () => undefined)
+    const config = useRuntimeConfig()
+
+    // Fetch the session for the enriched `me` / degraded state. If the endpoint
+    // is unreachable, leave unresolved so the next navigation retries rather than
+    // flashing a logged-out UI on a transient blip.
+    try {
+      const authPrefix = config.public.tlv2?.authPrefix || DEFAULT_AUTH_PREFIX
+      const session = await $fetch(`${authPrefix}/session`)
+      auth0User.value = session || undefined
+    } catch (e) {
+      console.warn('[tlv2-auth] Failed to fetch session:', e)
+      return
     }
 
     if (!auth0User.value) {
-      // Not logged in — clear enriched data
-      const roles = useState<string[]>('tlv2_user_roles', () => [])
-      const graphqlId = useState<string>('tlv2_user_id', () => '')
-      roles.value = []
-      graphqlId.value = ''
-      lastChecked.value = 0
-
-      // Redirect to login if requireLogin is set
-      const config = useRuntimeConfig()
+      // Not logged in.
+      me.value = undefined
+      sessionStorage.removeItem(REAUTH_KEY)
+      resolved.value = true
       if (config.public.tlv2?.requireLogin) {
         return useLogin(null)
       }
       return
     }
 
-    // Populate roles from session response (enriched server-side)
-    const roles = useState<string[]>('tlv2_user_roles', () => [])
-    const graphqlId = useState<string>('tlv2_user_id', () => '')
-    roles.value = [...(auth0User.value.tlv2_roles || [])].sort()
-    graphqlId.value = auth0User.value.tlv2_id || ''
-    lastChecked.value = Date.now()
+    // Degraded (logged in, no usable token): recover once via a silent re-login,
+    // else log out locally. The one-shot guard (which survives the auth0 round-trip)
+    // bounds it to a single re-login so it can't loop.
+    if (auth0User.value.tlv2_degraded) {
+      if (!sessionStorage.getItem(REAUTH_KEY)) {
+        sessionStorage.setItem(REAUTH_KEY, '1')
+        return useLogin(null)
+      }
+      return useLogoutLocal()
+    }
+
+    me.value = auth0User.value.tlv2_me
+    sessionStorage.removeItem(REAUTH_KEY)
+    // Resolve only when enrichment produced `me`; if it failed/timed out, leave
+    // unresolved so the next navigation retries.
+    if (auth0User.value.tlv2_me) {
+      resolved.value = true
+    }
   }, {
     global: true
   })
