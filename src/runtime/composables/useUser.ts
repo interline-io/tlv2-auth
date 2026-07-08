@@ -24,31 +24,26 @@ export interface TlUser {
   hasRole: (v: string) => boolean
 }
 
-// auth0-nuxt populates useState('auth0_user') with OIDC claims
+// auth0-nuxt populates auth0_user with OIDC claims; tlv2_user_me holds the
+// enriched GraphQL `me` (seeded on SSR and/or fetched client-side).
 const useAuth0User = () => useState<Record<string, any> | undefined>('auth0_user')
-
-// State keys for the enriched `me` data (populated on SSR and/or client)
-const useRoles = (): Ref<string[]> => useState<string[]>('tlv2_user_roles', () => [])
-const useGraphqlId = (): Ref<string> => useState<string>('tlv2_user_id', () => '')
 const useMe = (): Ref<TlMe | undefined> => useState<TlMe | undefined>('tlv2_user_me', () => undefined)
 
 export const useUser = (): TlUser => {
   const auth0User = useAuth0User()
-  const roles = useRoles()
-  const graphqlId = useGraphqlId()
   const me = useMe()
 
-  const loggedIn = !!auth0User.value
+  const roles = [...(me.value?.roles || [])].sort()
   return {
-    loggedIn,
-    id: graphqlId.value || auth0User.value?.tlv2_id || auth0User.value?.sub || '',
-    name: auth0User.value?.name || auth0User.value?.tlv2_name || '',
-    email: auth0User.value?.email || auth0User.value?.tlv2_email || '',
-    roles: roles.value,
+    loggedIn: !!auth0User.value,
+    id: me.value?.id || auth0User.value?.sub || '',
+    name: auth0User.value?.name || me.value?.name || '',
+    email: auth0User.value?.email || me.value?.email || '',
+    roles,
     me: me.value,
     externalData: me.value?.external_data || {},
     hasRole (v: string): boolean {
-      return roles.value.includes(v)
+      return roles.includes(v)
     }
   }
 }

@@ -4,14 +4,15 @@ import { resolveProxyBackends } from '../util/backends'
 import { useAuth0Session } from './useSession'
 import { traceEnabled, trace, traceUserClaims } from '../util/log'
 
-// Cap the `me` enrichment so a slow/hung backend can't stall the SSR render (it
-// runs on the render path) or the /auth/session response. On timeout the query
-// returns null and enrichment is skipped; the client re-fetches to fill roles.
+// Keep this file #imports-free: it's imported into both the nitro handler and
+// the Nuxt SSR-plugin bundles, so `config` is passed in rather than resolved here.
+
+// Cap `me` enrichment so a hung backend can't stall the SSR render or the
+// /auth/session response; on timeout the query returns null (enrichment skipped).
 const ENRICH_TIMEOUT_MS = 1000
 
-// Fetch roles from the GraphQL `me` endpoint. Returns null if the backend is
-// unreachable, times out, or errors — enrichment is best-effort since the
-// GraphQL backend is optional.
+// Fetch the GraphQL `me` record. Returns null on unreachable/timeout/error —
+// enrichment is best-effort.
 async function fetchMeData (proxyBase: string, headers: Record<string, string>) {
   const response = await fetch(`${proxyBase}/query`, {
     method: 'POST',
@@ -48,13 +49,9 @@ async function fetchMeData (proxyBase: string, headers: Record<string, string>) 
   return json?.data?.me ?? null
 }
 
-// Resolve the current user's session claims, enriched with roles from the
-// `default` backend's GraphQL `me` endpoint. Returns null when not logged in,
-// or the auth0 claims marked `tlv2_degraded` when the session has no usable
-// token (enrichment is skipped so the shared apikey's identity is never stamped
-// onto the user). Shared by the /auth/session endpoint (client fetch) and the
-// SSR enrichment plugin. `config` is passed in so this file needs no #imports
-// and stays valid in both the nitro-handler and Nuxt-plugin bundles.
+// Resolve the current user's claims, enriched with the GraphQL `me` record from
+// the `default` backend. Returns null when anonymous, or the auth0 claims marked
+// `tlv2_degraded` when there's no usable token.
 export async function getSessionUser (
   event: H3Event,
   config: Parameters<typeof resolveProxyBackends>[0]
@@ -68,10 +65,8 @@ export async function getSessionUser (
   }
   traceUserClaims('getSessionUser — user claims:', auth.user)
 
-  // Degraded session (logged in, no access token): skip enrichment and flag it.
-  // A `me` fetched with only the apikey would resolve to the shared key's
-  // identity and stamp its roles onto this user's claims. The `tlv2_degraded`
-  // marker lets the client attempt a one-shot re-auth (see auth-enrich.client).
+  // Degraded (logged in, no token): skip enrichment and flag it — a `me` fetched
+  // with only the apikey would stamp the shared key's identity onto this user.
   if (!auth.accessToken) {
     return { ...auth.user, tlv2_degraded: true }
   }

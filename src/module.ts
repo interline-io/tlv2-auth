@@ -55,17 +55,10 @@ export default defineNuxtModule<ModuleOptions>({
     const authPrefix = normalizePrefix(options.authPrefix!)
     const proxyPrefix = normalizePrefix(options.proxyPrefix!)
 
-    // Auth via auth0-nuxt (server-side sessions with HTTP-only cookies).
-    // Always installed at build time so auth0 credentials are purely a runtime
-    // concern (NUXT_AUTH0_* env vars). When credentials are absent at runtime
-    // (e.g. automated browser tests), the auth middleware no-ops and all users
-    // are treated as anonymous — the proxy and other features still work.
-    //
-    // auth0-nuxt's server plugin validates that domain/clientId/clientSecret/
-    // appBaseUrl/sessionSecret are non-empty at startup. When no clientId is
-    // provided, we seed all auth0 config with placeholders so the server can
-    // start without auth. This is all-or-nothing to avoid a partial state
-    // where some values are real and others are placeholders.
+    // Auth via auth0-nuxt (server-side sessions). Always installed so auth0
+    // config is purely a runtime concern (NUXT_AUTH0_*). With no clientId at
+    // runtime, seed all auth0 fields with placeholders (all-or-nothing) so the
+    // server starts unauthenticated and treats everyone as anonymous.
     const { randomBytes } = await import('node:crypto')
     // Register `audience` in the runtimeConfig schema so that consuming apps
     // can set NUXT_AUTH0_AUDIENCE without a type error.  auth0-nuxt's module
@@ -125,18 +118,14 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolveRuntimeModule('server/middleware/auth0')
     })
 
-    // Private runtime options (server-side only). tlv2proxy.backends is the
-    // per-backend directory (base + apikey + policy, keyed by backend name); the
-    // consumer declares backends here and sets values via
-    // NUXT_TLV2PROXY_BACKENDS_<NAME>_<FIELD>. The `default` backend also serves
-    // /auth/session `me` enrichment and SSR injection.
+    // Private per-backend proxy config (base + apikey + policy, keyed by name).
+    // The `default` backend also serves /auth/session enrichment and SSR injection.
     Object.assign(nuxt.options.runtimeConfig, defu(nuxt.options.runtimeConfig, {
       tlv2proxy: {
         backends: {},
       },
-      // Legacy migration: keep NUXT_TLV2_GRAPHQL_APIKEY / NUXT_TLV2_PROXY_BASE_*
-      // bindable so they map into undeclared backends (see resolveProxyBackends).
-      // Consumers with more than `default` declare the extra keys here too.
+      // Legacy migration bridge (see resolveProxyBackends); only `default` binds
+      // via env, so consumers with more backends declare them in tlv2proxy.backends.
       tlv2: {
         graphqlApikey: '',
         proxyBase: { default: '' },
@@ -187,11 +176,8 @@ export default defineNuxtModule<ModuleOptions>({
     })
 
     // Mount the proxy only when explicitly enabled — it injects server-side
-    // credentials, so it must not appear on upgrade just because legacy env
-    // vars are present. The module owns the route so credential injection and
-    // cookie/apikey stripping live in one place; anti-abuse gating (for a
-    // backend that injects an anonymous apikey) is the consuming app's job
-    // (see PROXY.md). Unconfigured backends 404.
+    // credentials, so legacy env vars alone must not expose it. Anti-abuse gating
+    // is the consuming app's job (see PROXY.md); unconfigured backends 404.
     if (options.proxyEnabled) {
       // Log the resolved proxy backends once at server startup (no secrets).
       addServerPlugin(resolveRuntimeModule('server/plugins/log-proxy-backends'))

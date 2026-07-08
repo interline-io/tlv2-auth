@@ -29,15 +29,10 @@ export async function proxyHandler (
   const requestApikey = (query.apikey ? query.apikey.toString() : '') || event.headers.get('apikey') || ''
   const headers = buildProxyHeaders(backendApikey, accessToken, requestApikey, apikeyWithToken)
 
-  // Strip caller-supplied credentials from the incoming request so h3's
-  // auto-forwarding (getProxyRequestHeaders) never copies them upstream: the
-  // session cookie, any apikey, and any Authorization. Deleting at the source is
-  // robust — unlike an empty-string override, it doesn't depend on h3's
-  // mergeHeaders semantics. The credentials the backend sees are set explicitly
-  // by buildProxyHeaders from the validated session, so a caller can't smuggle
-  // an apikey (header or ?apikey=) or a Bearer token past the token-exclusive
-  // policy. Node lowercases inbound header names, so one lowercase delete covers
-  // every casing.
+  // Strip caller-supplied credentials (cookie, apikey, Authorization) from the
+  // incoming request so h3's auto-forwarding never copies them upstream — the
+  // backend only sees what buildProxyHeaders set from the validated session.
+  // Node lowercases inbound header names, so one lowercase delete covers all casings.
   const reqHeaders = event.node?.req?.headers
   if (reqHeaders) {
     delete reqHeaders.cookie

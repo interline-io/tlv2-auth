@@ -12,10 +12,9 @@ export function useProxySsrFetch () {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
     const headers = new Headers(init.headers || {})
     headers.set('cookie', cookie)
-    // Return a genuine Response (not ofetch's parsed FetchResponse) so data
-    // clients like Apollo can call .text()/.json() on it. responseType:'text'
-    // keeps the raw body; ignoreResponseError surfaces 4xx/5xx as a readable
-    // response rather than a throw.
+    // Return a real Response (not ofetch's parsed FetchResponse) so Apollo can
+    // call .text()/.json(); responseType:'text' + ignoreResponseError keep raw
+    // 4xx/5xx bodies.
     const res = await $fetch.raw(url, {
       method: init.method as never,
       body: init.body as BodyInit | undefined,

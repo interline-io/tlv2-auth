@@ -19,13 +19,9 @@ export default defineEventHandler(async (event) => {
 
   const auth = await useAuth0Session(event)
 
-  // Fail closed without a usable token so a request never silently borrows the
-  // shared apikey identity:
-  //   - requireToken backend: token mandatory (anonymous or degraded → 401).
-  //   - degraded session (logged in, but token expired / refresh failed): a known
-  //     user must re-authenticate rather than downgrade to the anonymous apikey.
-  // Genuinely anonymous callers (never logged in) still get the apikey fallback
-  // where a backend allows it.
+  // Fail closed without a usable token so a request never borrows the shared
+  // apikey identity: requireToken backends and any logged-in-but-degraded session
+  // 401. Genuinely anonymous callers still get the apikey fallback where allowed.
   if (!auth.accessToken && (backend.requireToken || auth.loggedIn)) {
     throw createError({
       statusCode: 401,
