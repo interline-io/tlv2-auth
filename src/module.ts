@@ -120,7 +120,13 @@ export default defineNuxtModule<ModuleOptions>({
     Object.assign(nuxt.options.runtimeConfig, defu(nuxt.options.runtimeConfig, {
       tlv2proxy: {
         backends: {},
-      }
+      },
+      // Legacy migration: keep NUXT_TLV2_GRAPHQL_APIKEY / NUXT_TLV2_PROXY_BASE_DEFAULT
+      // bindable so they fold into the default backend (see resolveProxyBackends).
+      tlv2: {
+        graphqlApikey: '',
+        proxyBase: { default: '' },
+      },
     }))
 
     // Public runtime options (available on both server and client)

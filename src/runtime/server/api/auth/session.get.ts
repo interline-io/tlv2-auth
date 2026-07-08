@@ -1,6 +1,7 @@
 import { defineEventHandler } from 'h3'
 import { useRuntimeConfig } from '#imports'
 import { enrichUserClaims } from '../../../util/enrich'
+import { resolveProxyBackends } from '../../../util/backends'
 import { useAuth0Session } from '../../useSession'
 import { traceEnabled, trace, traceUserClaims } from '../../../util/log'
 
@@ -67,7 +68,7 @@ export default defineEventHandler(async (event) => {
 
   // Enrich with roles from the `default` backend's GraphQL `me` endpoint.
   const config = useRuntimeConfig(event)
-  const identity = config.tlv2proxy?.backends?.default
+  const identity = resolveProxyBackends(config).default
   if (!identity?.base) {
     if (traceEnabled) {
       trace('session.get — no default backend configured, returning user claims without enrichment')

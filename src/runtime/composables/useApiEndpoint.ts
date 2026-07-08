@@ -1,5 +1,6 @@
 import { useRuntimeConfig } from '#imports'
 import { DEFAULT_PROXY_PREFIX } from '../util/defaults'
+import { resolveProxyBackends } from '../util/backends'
 
 export const useApiEndpoint = (path?: string, clientName?: string) => {
   clientName = clientName || 'default'
@@ -7,7 +8,7 @@ export const useApiEndpoint = (path?: string, clientName?: string) => {
   const config = useRuntimeConfig()
   if (import.meta.server) {
     // Server-side: hit the backend base URL directly.
-    base = config.tlv2proxy?.backends?.[clientName]?.base || ''
+    base = resolveProxyBackends(config)[clientName]?.base || ''
   }
   if (import.meta.client) {
     // Client-side: route through the proxy.

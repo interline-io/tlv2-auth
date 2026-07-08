@@ -1,6 +1,7 @@
 import type { Plugin } from '#app'
 import { defineNuxtPlugin, useRuntimeConfig } from '#imports'
 import { useAuth0Session } from '../server/useSession'
+import { resolveProxyBackends } from '../util/backends'
 import { traceEnabled, trace } from '../util/log'
 
 // Server-side auth header injection for SSR requests.
@@ -13,7 +14,7 @@ import { traceEnabled, trace } from '../util/log'
 // leaking credentials to third-party services.
 const plugin: Plugin = defineNuxtPlugin((nuxtApp) => {
   const config = useRuntimeConfig()
-  const backends = config.tlv2proxy?.backends || {}
+  const backends = resolveProxyBackends(config)
   const identityApikey = backends.default?.apikey || ''
 
   const allowedOrigins = Object.values(backends)
