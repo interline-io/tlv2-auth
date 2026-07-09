@@ -4,7 +4,7 @@ export default defineNuxtConfig({
     '@nuxt/devtools',
   ],
 
-  ssr: false,
+  ssr: true,
 
   runtimeConfig: {
     // auth0-nuxt (server-only) — maps from NUXT_AUTH0_*
@@ -16,9 +16,12 @@ export default defineNuxtConfig({
       sessionSecret: '',
       audience: '',
     },
-    tlv2: {
-      proxyBase: {
-        default: '',
+    // Proxy backends — mounted at /proxy/{name} (proxyEnabled above). Set
+    // values via NUXT_TLV2PROXY_BACKENDS_<NAME>_<FIELD> (e.g. _DEFAULT_APIKEY).
+    tlv2proxy: {
+      backends: {
+        default: { base: 'https://api.transit.land/api/v2', apikey: '' },
+        stationEditor: { base: 'https://saas.transit.land/api/v2', requireToken: true },
       },
     },
     public: {

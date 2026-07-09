@@ -11,7 +11,12 @@ export function useProxySsrFetch () {
   return async (input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
     const headers = new Headers(init.headers || {})
-    headers.set('cookie', cookie)
+    // Forward the session cookie only to the in-process loopback (a relative
+    // proxy path). Never attach it to an absolute or protocol-relative URL,
+    // which would leak the auth0 session cookie to another origin.
+    if (cookie && url.startsWith('/') && !url.startsWith('//')) {
+      headers.set('cookie', cookie)
+    }
     // Return a real Response (not ofetch's parsed FetchResponse) so Apollo can
     // call .text()/.json(); responseType:'text' + ignoreResponseError keep raw
     // 4xx/5xx bodies.

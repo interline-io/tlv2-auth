@@ -56,6 +56,16 @@ create a whole backend from env vars alone. A camelCase name maps to
 SNAKE_CASE in the variable: `stationEditor` → `..._STATION_EDITOR_...`. Prefer
 single-word names to avoid the ambiguity.
 
+### Migrating from the legacy config
+
+The old `NUXT_TLV2_GRAPHQL_APIKEY` (apikey) and `NUXT_TLV2_PROXY_BASE_<NAME>`
+(endpoint) env vars still work during migration: each maps into a backend you
+have **not** declared in `tlv2proxy.backends`, with the legacy apikey attached
+to every bridged backend (reproducing the old single-key behaviour). A
+**declared** backend is never merged into, so moving one to `tlv2proxy.backends`
+without an `apikey` makes it fail-closed even if a stale legacy apikey lingers.
+Move to `NUXT_TLV2PROXY_BACKENDS_<NAME>_*`; the bridge is temporary.
+
 ### Per-backend policy
 
 | Field | Type | Meaning |
@@ -75,6 +85,9 @@ single-word names to avoid the ambiguity.
   borrows the apikey: it 401s on **any** backend, so a known user re-authenticates
   rather than silently downgrading to the shared anonymous identity. Only a
   genuinely anonymous caller gets the apikey fallback where a backend allows it.
+- The app-wide `requireLogin` module option fail-closes the **whole** proxy: with
+  it set, every anonymous request 401s (no apikey fallback on any backend). Use a
+  backend's `requireToken` to fail-close just that one backend instead.
 - Callers may still pass their own key via `?apikey=` or an `apikey` header on
   anonymous token-less requests.
 
