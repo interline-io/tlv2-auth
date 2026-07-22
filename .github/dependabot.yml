@@ -1,6 +1,13 @@
 version: 2
 updates:
+  # Security-advisory updates only. open-pull-requests-limit: 0 disables scheduled
+  # version-update PRs (the per-hash-pin patch-bump noise); Dependabot security
+  # updates are not subject to this limit and still open PRs.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 0
+    labels:
+      - dependencies
+      - github-actions
