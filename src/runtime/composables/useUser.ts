@@ -1,5 +1,6 @@
 import { useState } from '#imports'
 import type { Ref } from 'vue'
+import { makeUser } from '../util/makeUser'
 
 // The GraphQL `me` response (schema `type Me`). external_data is an open map of
 // extra identifiers/metadata associated with the user.
@@ -29,21 +30,6 @@ export interface TlUser {
 const useAuth0User = () => useState<Record<string, any> | undefined>('auth0_user')
 const useMe = (): Ref<TlMe | undefined> => useState<TlMe | undefined>('tlv2_user_me', () => undefined)
 
-export const useUser = (): TlUser => {
-  const auth0User = useAuth0User()
-  const me = useMe()
-
-  const roles = [...(me.value?.roles || [])].sort()
-  return {
-    loggedIn: !!auth0User.value,
-    id: me.value?.id || auth0User.value?.sub || '',
-    name: auth0User.value?.name || me.value?.name || '',
-    email: auth0User.value?.email || me.value?.email || '',
-    roles,
-    me: me.value,
-    externalData: me.value?.external_data || {},
-    hasRole (v: string): boolean {
-      return roles.includes(v)
-    }
-  }
-}
+// Reactive so a held reference reflects later session changes (background refresh,
+// enrichment populating roles without a navigation) -- see makeUser.
+export const useUser = (): TlUser => makeUser(useAuth0User(), useMe())
