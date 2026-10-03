@@ -1,10 +1,12 @@
 export default defineNuxtConfig({
   modules: [
     '../src/module',
-    '@nuxt/devtools',
   ],
 
   ssr: true,
+
+  // nuxt depends on @nuxt/devtools and starts it in dev unless told not to.
+  devtools: { enabled: false },
 
   runtimeConfig: {
     // auth0-nuxt (server-only) — maps from NUXT_AUTH0_*
