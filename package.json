@@ -43,24 +43,24 @@
     "defu": "^6.1.5"
   },
   "devDependencies": {
-    "@nuxt/eslint": "1.10.0",
-    "@nuxt/eslint-config": "1.10.0",
-    "@nuxt/kit": "^4.4.0",
-    "@nuxt/module-builder": "1.0.2",
-    "@nuxt/schema": "^4.4.0",
-    "@stylistic/eslint-plugin": "5.5.0",
-    "eslint": "9.39.4",
-    "eslint-plugin-vue": "10.5.1",
-    "eslint-typegen": "2.3.0",
-    "nuxi": "3.30.0",
-    "nuxt": "^4.4.0",
-    "tsx": "4.20.6",
+    "@nuxt/eslint": "1.17.0",
+    "@nuxt/eslint-config": "1.17.0",
+    "@nuxt/kit": "^4.5.1",
+    "@nuxt/module-builder": "1.0.3",
+    "@nuxt/schema": "^4.5.1",
+    "@stylistic/eslint-plugin": "5.10.0",
+    "eslint": "10.11.0",
+    "eslint-plugin-vue": "10.11.1",
+    "eslint-typegen": "2.3.1",
+    "nuxi": "3.37.0",
+    "nuxt": "^4.5.1",
+    "tsx": "4.23.15",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.46.3",
-    "vitest": "3.2.6",
+    "typescript-eslint": "8.70.1",
+    "vitest": "4.1.11",
     "vue": "^3.5.0",
-    "vue-eslint-parser": "10.2.0",
-    "vue-tsc": "3.2.6"
+    "vue-eslint-parser": "10.4.1",
+    "vue-tsc": "3.3.11"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
@@ -73,21 +73,6 @@
       "esbuild",
       "unrs-resolver",
       "vue-demi"
-    ],
-    "overrides": {
-      "@babel/core": ">=7.29.6",
-      "brace-expansion@1": "1.1.13",
-      "brace-expansion@2": "2.0.3",
-      "esbuild": ">=0.28.1",
-      "js-yaml": ">=4.2.0",
-      "launch-editor": ">=2.14.1",
-      "lodash": ">=4.18.0",
-      "postcss": ">=8.5.10",
-      "shell-quote": ">=1.8.4",
-      "simple-git": ">=3.36.0",
-      "tar": ">=7.5.16",
-      "vite": ">=7.3.5",
-      "ws": ">=8.21.0"
-    }
+    ]
   }
 }

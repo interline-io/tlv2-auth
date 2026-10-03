@@ -17,10 +17,9 @@
     "graphql-tag": "2.12.7"
   },
   "devDependencies": {
-    "@nuxt/devtools": "3.0.1",
-    "nuxt": "4.4.7",
+    "nuxt": "4.5.2",
     "typescript": "5.9.3",
     "vue": "^3.5.0",
-    "vue-tsc": "3.2.6"
+    "vue-tsc": "3.3.11"
   }
 }
