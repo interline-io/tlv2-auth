@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { proxyRequest, getQuery, createError } from 'h3'
+import { proxyRequest, sendStream, getQuery, createError } from 'h3'
 import { buildProxyTarget, buildProxyHeaders, stripApikeyParam } from './proxy-route'
 import { traceEnabled, trace } from './log'
 
@@ -56,6 +56,22 @@ export async function proxyHandler (
     fetchOptions: {
       redirect: 'manual'
     },
-    headers
+    headers,
+    onResponse: streamBody
   })
+}
+
+// Streams the upstream body to the client instead of letting h3's sendProxy copy it.
+//
+// sendProxy writes the body chunk by chunk into event.node.res. On the Cloudflare
+// preset that is node-mock-http's ServerResponse, which Buffer.concat's every chunk
+// onto everything before it: quadratic in body size, and nothing reaches the client
+// until the last chunk. A 5 MB map tile took ~9 s that way, against 0.3 s upstream.
+// sendStream hands the stream to the response directly (Node pipes it), and marks the
+// event handled, so sendProxy returns without touching the body. It runs after
+// sendProxy has copied status and headers, so those are unchanged.
+function streamBody (event: H3Event, response: Response) {
+  if (response.body) {
+    return sendStream(event, response.body)
+  }
 }
