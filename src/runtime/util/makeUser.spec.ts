@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { ref } from 'vue'
 import { makeUser } from './makeUser'
 import type { TlMe } from '../composables/useUser'
@@ -22,9 +22,26 @@ describe('makeUser', () => {
     expect(user.loggedIn).toBe(true)
     expect(user.id).toBe('gql-1')
     expect(user.name).toBe('Alice')
+    expect(user.email).toBe('a@b.co')
     expect(user.roles).toEqual(['admin', 'editor']) // sorted
     expect(user.hasRole('admin')).toBe(true)
     expect(user.externalData).toEqual({ q: '1' })
+    expect(user.me).toEqual(me.value)
+  })
+
+  it('keeps a write to user.me out of the session state', () => {
+    const viewer: TlMe = { id: 'gql-1', name: null, email: null, roles: ['viewer'], external_data: {} }
+    const me = ref<TlMe | undefined>(viewer)
+    const user = makeUser(ref<Record<string, any> | undefined>({ sub: 'auth0|1' }), me)
+
+    // Vue's dev build warns that the write failed.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // @ts-expect-error TlUser fields are readonly
+    user.me = { ...viewer, roles: ['admin'] }
+    warn.mockRestore()
+
+    expect(me.value?.roles).toEqual(['viewer'])
+    expect(user.hasRole('admin')).toBe(false)
   })
 
   it('applies the id / name / email fallback order', () => {
