@@ -56,7 +56,7 @@ describe('proxy route', () => {
   it('404s an unknown backend without proxying', async () => {
     const res = await fetchApp(new Request('https://www.example.com/proxy/nope/query'))
     expect(res.status).toBe(404)
-    expect((await res.json()).message).toContain('Unknown proxy backend')
+    expect(await res.json()).toEqual({ statusCode: 404, statusMessage: 'Not Found', message: '[tlv2-proxy] Unknown proxy backend' })
     expect(proxyHandler).not.toHaveBeenCalled()
   })
 
@@ -66,9 +66,10 @@ describe('proxy route', () => {
     expect(forwarded()).toEqual({ base: 'https://api.example.com', path: '/query?limit=1', headers: { apikey: 'shared-key' }, body: undefined })
   })
 
-  it('prefers an apikey the caller supplies, by query or header', async () => {
-    await fetchApp(new Request('https://www.example.com/proxy/default/query?apikey=caller-key'))
+  it('prefers an apikey the caller supplies, by query or header, and keeps it off the path', async () => {
+    await fetchApp(new Request('https://www.example.com/proxy/default/query?apikey=caller-key&limit=1'))
     expect(forwarded()?.headers).toEqual({ apikey: 'caller-key' })
+    expect(forwarded()?.path).toBe('/query?limit=1')
     vi.mocked(proxyHandler).mockClear()
     await fetchApp(new Request('https://www.example.com/proxy/default/query', { headers: { apikey: 'caller-key' } }))
     expect(forwarded()?.headers).toEqual({ apikey: 'caller-key' })
@@ -100,6 +101,7 @@ describe('proxy route', () => {
     const res = await fetchApp(new Request('https://www.example.com/proxy/stationEditor/download', { headers: { accept: 'text/html' } }))
     expect(res.status).toBe(401)
     expect(res.headers.get('content-type')).toContain('application/json')
+    expect(await res.json()).toEqual({ statusCode: 401, statusMessage: 'Unauthorized', message: '[tlv2-proxy] Authentication required' })
   })
 
   it('proxies a logged-in caller with their token and the backend policy', async () => {
@@ -136,13 +138,13 @@ describe('the tlv2proxy:request hook', () => {
       seen.push({ backend, path, sharedApikey })
     })
     await fetchApp(new Request('https://www.example.com/proxy/default/query?limit=1'))
-    await fetchApp(new Request('https://www.example.com/proxy/default/query?apikey=caller-key'))
+    await fetchApp(new Request('https://www.example.com/proxy/default/query?apikey=caller-key&limit=1'))
     session.value = loggedIn
     await fetchApp(new Request('https://www.example.com/proxy/default/query'))
     await fetchApp(new Request('https://www.example.com/proxy/tiles/tiles/0/0/0.pbf'))
     expect(seen).toEqual([
       { backend: 'default', path: '/query?limit=1', sharedApikey: true },
-      { backend: 'default', path: '/query?apikey=caller-key', sharedApikey: false },
+      { backend: 'default', path: '/query?limit=1', sharedApikey: false },
       { backend: 'default', path: '/query', sharedApikey: false },
       { backend: 'tiles', path: '/tiles/0/0/0.pbf', sharedApikey: true }
     ])

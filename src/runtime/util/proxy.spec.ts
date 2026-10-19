@@ -92,12 +92,12 @@ describe('proxyHandler', () => {
 
   it('sends only the credential headers it is given, stripping the caller\'s own', async () => {
     const { handler, fetchMock } = await makeHandler(new Response('ok'))
-    await handler(new Request('https://www.example.com/query?apikey=caller-key&limit=1', {
+    await handler(new Request('https://www.example.com/query?limit=1', {
       headers: { cookie: 'appSession=secret', authorization: 'Bearer forged', apikey: 'caller-key' }
     }))
     const [target, init] = fetchMock.mock.calls[0]!
     // The route picks between a caller's apikey and the backend's; this sends
-    // its choice, and drops the caller's query param.
+    // its choice.
     expect(target).toBe('https://upstream.example.com/api/v2/query?limit=1')
     const sent = new Headers(init.headers)
     expect(sent.get('apikey')).toBe('backend-key')

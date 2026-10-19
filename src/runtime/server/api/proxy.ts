@@ -3,7 +3,7 @@ import type { H3Error, H3Event } from 'h3'
 import { useNitroApp } from 'nitropack/runtime'
 import { useRuntimeConfig } from '#imports'
 import { proxyHandler } from '../../util/proxy'
-import { buildProxyHeaders, parseProxyRoute } from '../../util/proxy-route'
+import { buildProxyHeaders, parseProxyRoute, stripApikeyParam } from '../../util/proxy-route'
 import { resolveProxyBackends } from '../../util/backends'
 import { DEFAULT_PROXY_PREFIX } from '../../util/defaults'
 import { traceEnabled, trace } from '../../util/log'
@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   const route = parseProxyRoute(event.path || '', prefix)
   const backend = route ? resolveProxyBackends(config)[route.name] : undefined
   if (!route || !backend?.base) {
-    return refuse(event, createError({ statusCode: 404, message: '[tlv2-proxy] Unknown proxy backend' }))
+    return refuse(event, createError({ statusCode: 404, statusMessage: 'Not Found', message: '[tlv2-proxy] Unknown proxy backend' }))
   }
 
   const auth = await useAuth0Session(event)
@@ -32,6 +32,7 @@ export default defineEventHandler(async (event) => {
   if (!auth.accessToken && (backend.requireToken || auth.loggedIn || requireLogin)) {
     return refuse(event, createError({
       statusCode: 401,
+      statusMessage: 'Unauthorized',
       message: auth.loggedIn
         ? '[tlv2-proxy] Session degraded; re-authentication required'
         : '[tlv2-proxy] Authentication required'
@@ -41,11 +42,14 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const requestApikey = (query.apikey ? query.apikey.toString() : '') || event.headers.get('apikey') || ''
   const headers = buildProxyHeaders(backend.apikey, auth.accessToken, requestApikey, backend.apikeyWithToken)
+  // The caller's apikey goes in `headers` when policy allows it, never on the
+  // forwarded URL, and never to a hook that might log the path.
+  const path = stripApikeyParam(route.strippedPath)
 
   const request: ProxyRequest = {
     event,
     backend: route.name,
-    path: route.strippedPath,
+    path,
     sharedApikey: !!backend.apikey && headers.apikey === backend.apikey
   }
   try {
@@ -61,7 +65,7 @@ export default defineEventHandler(async (event) => {
     throw err
   }
 
-  return proxyHandler(event, { base: backend.base, path: route.strippedPath, headers, body: request.body })
+  return proxyHandler(event, { base: backend.base, path, headers, body: request.body })
 })
 
 // Answers a refusal as JSON whatever the request accepts. A proxy URL is never a

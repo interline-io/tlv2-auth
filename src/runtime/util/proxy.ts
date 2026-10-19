@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { proxyRequest, sendStream, createError } from 'h3'
-import { buildProxyTarget, stripApikeyParam } from './proxy-route'
+import { buildProxyTarget } from './proxy-route'
 import { traceEnabled, trace } from './log'
 
 // Pinned at module load (before any app plugin can wrap globalThis.fetch) so the
@@ -12,7 +12,7 @@ const pinnedFetch = globalThis.fetch
 export interface ProxyForward {
   // The backend's base URL.
   base: string
-  // The path and query to append to `base`.
+  // The path and query to append to `base`, with no caller-supplied apikey.
   path: string
   // The credential headers the proxy's policy chose (see buildProxyHeaders).
   headers: Record<string, string>
@@ -51,7 +51,7 @@ export async function proxyHandler (event: H3Event, forward: ProxyForward) {
     }
   }
   const headers: Record<string, string> = { ...forward.headers, cookie: '' }
-  const target = buildProxyTarget(forward.base, stripApikeyParam(forward.path))
+  const target = buildProxyTarget(forward.base, forward.path)
 
   if (traceEnabled) {
     trace('proxy — target:', target, 'hasToken:', !!headers.authorization, 'hasApikey:', !!headers.apikey, 'bodyReplaced:', forward.body !== undefined)
