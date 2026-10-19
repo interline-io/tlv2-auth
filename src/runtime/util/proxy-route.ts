@@ -53,6 +53,10 @@ export function buildProxyTarget (proxyBase: string, requestPath: string): strin
   return resolved.toString()
 }
 
+// The headers that carry credentials, lowercase. Only the proxy's policy sets
+// them upstream; a caller's copies are stripped.
+export const CREDENTIAL_HEADERS = ['authorization', 'apikey', 'cookie', 'proxy-authorization']
+
 // Build auth headers. A valid token is exclusive (Bearer only) unless
 // apikeyWithToken; otherwise a token-less request gets an apikey — a
 // request-supplied one (?apikey= / header) over the backend's — or none.

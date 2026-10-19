@@ -133,7 +133,7 @@ describe('proxy route', () => {
 
 describe('the tlv2proxy:request hook', () => {
   it('sees the backend, the path and whether the shared apikey rides', async () => {
-    const seen: Omit<ProxyRequest, 'event'>[] = []
+    const seen: Pick<ProxyRequest, 'backend' | 'path' | 'sharedApikey'>[] = []
     hooks.value.hook('tlv2proxy:request', ({ backend, path, sharedApikey }) => {
       seen.push({ backend, path, sharedApikey })
     })
@@ -156,6 +156,29 @@ describe('the tlv2proxy:request hook', () => {
     })
     await fetchApp(new Request('https://www.example.com/proxy/default/query', { method: 'POST', body: '{"query":"{ original }"}' }))
     expect(forwarded()?.body).toBe('{"query":"{ replaced }"}')
+  })
+
+  it('forwards headers a hook adds beside the credential headers', async () => {
+    hooks.value.hook('tlv2proxy:request', (request) => {
+      request.headers['x-vetted'] = 'signed'
+    })
+    await fetchApp(new Request('https://www.example.com/proxy/default/query'))
+    expect(forwarded()?.headers).toEqual({ 'x-vetted': 'signed', 'apikey': 'shared-key' })
+  })
+
+  it('fails a request whose hook sets a credential header, forwarding nothing', async () => {
+    for (const name of ['Authorization', 'apikey', 'Cookie', 'proxy-authorization']) {
+      vi.mocked(proxyHandler).mockClear()
+      errors.length = 0
+      hooks.value = createHooks<ProxyHooks>()
+      hooks.value.hook('tlv2proxy:request', (request) => {
+        request.headers[name] = 'forged'
+      })
+      const res = await fetchApp(new Request('https://www.example.com/proxy/default/query'))
+      expect(res.status, name).toBe(500)
+      expect(errors[0]?.message, name).toContain(`credential header ${name}`)
+      expect(proxyHandler, name).not.toHaveBeenCalled()
+    }
   })
 
   it('answers a hook\'s refusal as JSON, and runs no later hook and forwards nothing', async () => {

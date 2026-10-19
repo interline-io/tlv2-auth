@@ -3,7 +3,7 @@ import type { H3Error, H3Event } from 'h3'
 import { useNitroApp } from 'nitropack/runtime'
 import { useRuntimeConfig } from '#imports'
 import { proxyHandler } from '../../util/proxy'
-import { buildProxyHeaders, parseProxyRoute, stripApikeyParam } from '../../util/proxy-route'
+import { CREDENTIAL_HEADERS, buildProxyHeaders, parseProxyRoute, stripApikeyParam } from '../../util/proxy-route'
 import { resolveProxyBackends } from '../../util/backends'
 import { DEFAULT_PROXY_PREFIX } from '../../util/defaults'
 import { traceEnabled, trace } from '../../util/log'
@@ -50,7 +50,8 @@ export default defineEventHandler(async (event) => {
     event,
     backend: route.name,
     path,
-    sharedApikey: !!backend.apikey && headers.apikey === backend.apikey
+    sharedApikey: !!backend.apikey && headers.apikey === backend.apikey,
+    headers: {}
   }
   try {
     await useNitroApp().hooks.callHook('tlv2proxy:request', request)
@@ -65,7 +66,13 @@ export default defineEventHandler(async (event) => {
     throw err
   }
 
-  return proxyHandler(event, { base: backend.base, path, headers, body: request.body })
+  // Credentials are the proxy's policy alone, so a hook that sets one is a bug.
+  const claimed = Object.keys(request.headers).find(name => CREDENTIAL_HEADERS.includes(name.toLowerCase()))
+  if (claimed) {
+    throw new Error(`[tlv2-proxy] A tlv2proxy:request hook set the credential header ${claimed}`)
+  }
+
+  return proxyHandler(event, { base: backend.base, path, headers: { ...request.headers, ...headers }, body: request.body })
 })
 
 // Answers a refusal as JSON whatever the request accepts. A proxy URL is never a

@@ -154,6 +154,14 @@ The hook receives a `ProxyRequest`:
 | `path` | `string` | The path and query after the backend segment, such as `/query`. A caller-supplied `apikey` parameter is removed, as it is from the forwarded URL. |
 | `sharedApikey` | `boolean` | True when the request goes upstream under the backend's own `apikey`: an anonymous caller on a backend with a fallback key, or a token with `apikeyWithToken`. False for a token alone, or a key the caller supplied. |
 | `body` | `string?` | Set to send this upstream in place of the request's own body. The proxy sends the new body's length. |
+| `headers` | `Record<string, string>` | Headers to set on the request sent upstream, replacing any the caller sent under the same names. Starts empty. |
+
+A hook may not set a credential header (`authorization`, `apikey`, `cookie`,
+`proxy-authorization`): those come only from the proxy's credential policy, and
+a hook that sets one fails the request. A header a hook sets replaces the
+caller's copy, but when no hook sets it, the caller's copy goes upstream. An
+upstream that trusts a header from the proxy should therefore verify it, with a
+signature for instance, rather than trust its presence.
 
 A hook refuses a request by throwing an h3 error with a status below 500, which
 the proxy answers as JSON; no later hook runs and nothing is forwarded. Any

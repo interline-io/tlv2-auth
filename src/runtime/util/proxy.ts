@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { proxyRequest, sendStream, createError } from 'h3'
-import { buildProxyTarget } from './proxy-route'
+import { CREDENTIAL_HEADERS, buildProxyTarget } from './proxy-route'
 import { traceEnabled, trace } from './log'
 
 // Pinned at module load (before any app plugin can wrap globalThis.fetch) so the
@@ -14,14 +14,15 @@ export interface ProxyForward {
   base: string
   // The path and query to append to `base`, with no caller-supplied apikey.
   path: string
-  // The credential headers the proxy's policy chose (see buildProxyHeaders).
+  // The headers to set upstream: the credential headers the proxy's policy chose
+  // (see buildProxyHeaders), and any a tlv2proxy:request hook added.
   headers: Record<string, string>
   // A body to send in place of the request's own.
   body?: string
 }
 
-// Forwards a request to a backend with the given credential headers, stripping
-// the caller's own credentials (session cookie, caller-supplied apikey).
+// Forwards a request to a backend with the given headers, stripping the caller's
+// own credentials (session cookie, caller-supplied apikey).
 export async function proxyHandler (event: H3Event, forward: ProxyForward) {
   if (!forward.base) {
     throw createError({
@@ -40,10 +41,9 @@ export async function proxyHandler (event: H3Event, forward: ProxyForward) {
   // strict backend reject a present-but-empty Authorization.
   const reqHeaders = event.node?.req?.headers
   if (reqHeaders) {
-    delete reqHeaders.cookie
-    delete reqHeaders.apikey
-    delete reqHeaders.authorization
-    delete reqHeaders['proxy-authorization']
+    for (const name of CREDENTIAL_HEADERS) {
+      Reflect.deleteProperty(reqHeaders, name)
+    }
     // h3 forwards content-length as the request had it; fetch sets a
     // replacement body's own.
     if (forward.body !== undefined) {

@@ -111,6 +111,14 @@ describe('proxyHandler', () => {
     expect(userSent.get('apikey')).toBeNull()
   })
 
+  it('sends a header it is given in place of the caller\'s copy', async () => {
+    const { handler, fetchMock } = await makeHandler(new Response('ok'), { headers: { 'apikey': 'backend-key', 'x-vetted': 'signed' } })
+    await handler(new Request('https://www.example.com/query', { headers: { 'X-Vetted': 'forged' } }))
+    const sent = new Headers(fetchMock.mock.calls[0]![1].headers)
+    expect(sent.get('x-vetted')).toBe('signed')
+    expect(sent.get('apikey')).toBe('backend-key')
+  })
+
   it('sends the request\'s own body when given none to replace it', async () => {
     const { handler, fetchMock } = await makeHandler(new Response('ok'))
     await handler(new Request('https://www.example.com/query', { method: 'POST', body: '{"query":"{ original }"}' }))
