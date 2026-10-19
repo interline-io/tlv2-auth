@@ -21,13 +21,18 @@ function heldStream () {
 }
 
 // proxy.ts pins globalThis.fetch at module load, so stub it before importing.
-async function makeHandler (upstream: Response, opts: { accessToken?: string, apikeyWithToken?: boolean } = {}) {
+async function makeHandler (upstream: Response, forward: { headers?: Record<string, string>, body?: string } = {}) {
   const fetchMock = vi.fn().mockResolvedValue(upstream)
   vi.stubGlobal('fetch', fetchMock)
   vi.resetModules()
   const { proxyHandler } = await import('./proxy')
   const app = createApp()
-  app.use(eventHandler(event => proxyHandler(event, 'https://upstream.example.com/api/v2', 'backend-key', opts.accessToken, undefined, opts.apikeyWithToken)))
+  app.use(eventHandler(event => proxyHandler(event, {
+    base: 'https://upstream.example.com/api/v2',
+    path: event.path,
+    headers: forward.headers ?? { apikey: 'backend-key' },
+    body: forward.body
+  })))
   return { handler: toWebHandler(app), fetchMock }
 }
 
@@ -85,32 +90,45 @@ describe('proxyHandler', () => {
     expect(res.headers.get('etag')).toBe('"v1"')
   })
 
-  it('sends the injected apikey upstream and strips caller credentials', async () => {
+  it('sends only the credential headers it is given, stripping the caller\'s own', async () => {
     const { handler, fetchMock } = await makeHandler(new Response('ok'))
     await handler(new Request('https://www.example.com/query?apikey=caller-key&limit=1', {
-      headers: { cookie: 'appSession=secret', authorization: 'Bearer forged' }
+      headers: { cookie: 'appSession=secret', authorization: 'Bearer forged', apikey: 'caller-key' }
     }))
     const [target, init] = fetchMock.mock.calls[0]!
+    // The route picks between a caller's apikey and the backend's; this sends
+    // its choice, and drops the caller's query param.
     expect(target).toBe('https://upstream.example.com/api/v2/query?limit=1')
     const sent = new Headers(init.headers)
-    // A caller-supplied apikey wins over the backend's, but moves from the query to a header.
-    expect(sent.get('apikey')).toBe('caller-key')
+    expect(sent.get('apikey')).toBe('backend-key')
     expect(sent.get('cookie') || '').toBe('')
     expect(sent.get('authorization')).toBeNull()
+
+    const user = await makeHandler(new Response('ok'), { headers: { authorization: 'Bearer jwt' } })
+    await user.handler(new Request('https://www.example.com/query'))
+    const userSent = new Headers(user.fetchMock.mock.calls[0]![1].headers)
+    expect(userSent.get('authorization')).toBe('Bearer jwt')
+    expect(userSent.get('apikey')).toBeNull()
   })
 
-  it('sends the user token, and the apikey alongside it only when apikeyWithToken is set', async () => {
-    const { handler, fetchMock } = await makeHandler(new Response('ok'), { accessToken: 'jwt' })
-    await handler(new Request('https://www.example.com/query'))
-    let sent = new Headers(fetchMock.mock.calls[0]![1].headers)
-    expect(sent.get('authorization')).toBe('Bearer jwt')
-    expect(sent.get('apikey')).toBeNull()
+  it('sends the request\'s own body when given none to replace it', async () => {
+    const { handler, fetchMock } = await makeHandler(new Response('ok'))
+    await handler(new Request('https://www.example.com/query', { method: 'POST', body: '{"query":"{ original }"}' }))
+    expect(String(fetchMock.mock.calls[0]![1].body)).toBe('{"query":"{ original }"}')
+  })
 
-    const tiles = await makeHandler(new Response('ok'), { accessToken: 'jwt', apikeyWithToken: true })
-    await tiles.handler(new Request('https://www.example.com/tiles/routes/tiles/0/0/0.pbf'))
-    sent = new Headers(tiles.fetchMock.mock.calls[0]![1].headers)
-    expect(sent.get('authorization')).toBe('Bearer jwt')
-    expect(sent.get('apikey')).toBe('backend-key')
+  it('sends a replacement body, leaving fetch to set its length', async () => {
+    const original = '{"query":"{ original }"}'
+    const { handler, fetchMock } = await makeHandler(new Response('ok'), { body: '{"query":"{ a longer replacement }"}' })
+    await handler(new Request('https://www.example.com/query', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': String(original.length) },
+      body: original
+    }))
+    const init = fetchMock.mock.calls[0]![1]
+    expect(init.body).toBe('{"query":"{ a longer replacement }"}')
+    expect(new Headers(init.headers).get('content-length')).toBeNull()
+    expect(new Headers(init.headers).get('content-type')).toBe('application/json')
   })
 
   it('passes a redirect through rather than following it', async () => {

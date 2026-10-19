@@ -1,20 +1,25 @@
-import { defineEventHandler, createError } from 'h3'
+import { defineEventHandler, createError, getQuery, isError, setResponseStatus } from 'h3'
+import type { H3Error, H3Event } from 'h3'
+import { useNitroApp } from 'nitropack/runtime'
 import { useRuntimeConfig } from '#imports'
 import { proxyHandler } from '../../util/proxy'
-import { parseProxyRoute } from '../../util/proxy-route'
+import { buildProxyHeaders, parseProxyRoute } from '../../util/proxy-route'
 import { resolveProxyBackends } from '../../util/backends'
 import { DEFAULT_PROXY_PREFIX } from '../../util/defaults'
+import { traceEnabled, trace } from '../../util/log'
 import { useAuth0Session } from '../useSession'
+import type { ProxyRequest } from '../proxyRequest'
 
 // Dispatches a proxy request to a configured backend (tlv2proxy.backends),
-// applying that backend's auth policy (token-exclusive apikey + requireToken).
+// applying that backend's auth policy (token-exclusive apikey + requireToken),
+// then the app's tlv2proxy:request hooks.
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
   const prefix = config.public?.tlv2proxy?.prefix || DEFAULT_PROXY_PREFIX
   const route = parseProxyRoute(event.path || '', prefix)
   const backend = route ? resolveProxyBackends(config)[route.name] : undefined
   if (!route || !backend?.base) {
-    throw createError({ statusCode: 404, message: '[tlv2-proxy] Unknown proxy backend' })
+    return refuse(event, createError({ statusCode: 404, message: '[tlv2-proxy] Unknown proxy backend' }))
   }
 
   const auth = await useAuth0Session(event)
@@ -25,20 +30,44 @@ export default defineEventHandler(async (event) => {
   // fallback only when the app permits it (requireLogin off, backend not requireToken).
   const requireLogin = config.public?.tlv2?.requireLogin
   if (!auth.accessToken && (backend.requireToken || auth.loggedIn || requireLogin)) {
-    throw createError({
+    return refuse(event, createError({
       statusCode: 401,
       message: auth.loggedIn
         ? '[tlv2-proxy] Session degraded; re-authentication required'
         : '[tlv2-proxy] Authentication required'
-    })
+    }))
   }
 
-  return proxyHandler(
+  const query = getQuery(event)
+  const requestApikey = (query.apikey ? query.apikey.toString() : '') || event.headers.get('apikey') || ''
+  const headers = buildProxyHeaders(backend.apikey, auth.accessToken, requestApikey, backend.apikeyWithToken)
+
+  const request: ProxyRequest = {
     event,
-    backend.base,
-    backend.apikey || '',
-    auth.accessToken,
-    route.strippedPath,
-    backend.apikeyWithToken
-  )
+    backend: route.name,
+    path: route.strippedPath,
+    sharedApikey: !!backend.apikey && headers.apikey === backend.apikey
+  }
+  try {
+    await useNitroApp().hooks.callHook('tlv2proxy:request', request)
+  } catch (err) {
+    // A refusal is an answer; anything else is a failure for Nitro to report.
+    if (isError(err) && err.statusCode < 500) {
+      if (traceEnabled) {
+        trace('proxy — refused by a tlv2proxy:request hook:', err.statusCode, err.message)
+      }
+      return refuse(event, err)
+    }
+    throw err
+  }
+
+  return proxyHandler(event, { base: backend.base, path: route.strippedPath, headers, body: request.body })
 })
+
+// Answers a refusal as JSON whatever the request accepts. A proxy URL is never a
+// page, and a thrown error would render Nuxt's HTML error page for a navigation,
+// such as a download link.
+function refuse (event: H3Event, error: H3Error) {
+  setResponseStatus(event, error.statusCode, error.statusMessage)
+  return { statusCode: error.statusCode, statusMessage: error.statusMessage, message: error.message }
+}
