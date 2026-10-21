@@ -47,10 +47,21 @@ export function buildProxyTarget (proxyBase: string, requestPath: string): strin
   if (resolved.origin !== proxyBaseUrl.origin) {
     throw new Error(`[tlv2-proxy] SSRF detected: ${requestPath}`)
   }
-  if (proxyBasePathname && !resolved.pathname.startsWith(proxyBasePathname)) {
+  // Under the base path itself, not a sibling that shares its prefix:
+  // /api/v2x is outside /api/v2.
+  const baseRoot = proxyBasePathname.replace(/\/$/, '')
+  if (baseRoot && resolved.pathname !== baseRoot && !resolved.pathname.startsWith(`${baseRoot}/`)) {
     throw new Error(`[tlv2-proxy] Path traversal detected: ${requestPath}`)
   }
   return resolved.toString()
+}
+
+// The path and query of a buildProxyTarget target below the base's own path:
+// what a request names after the backend segment, as the backend receives it.
+export function pathUnderBase (proxyBase: string, target: string): string {
+  const basePathname = new URL(proxyBase).pathname
+  const url = new URL(target)
+  return url.pathname.slice(basePathname === '/' ? 0 : basePathname.length) + url.search
 }
 
 // The headers that carry credentials, lowercase. Only the proxy's policy sets

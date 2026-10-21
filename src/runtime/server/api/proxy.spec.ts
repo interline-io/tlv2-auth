@@ -63,13 +63,13 @@ describe('proxy route', () => {
   it('proxies an anonymous caller with the shared apikey when the backend allows it', async () => {
     const res = await fetchApp(new Request('https://www.example.com/proxy/default/query?limit=1'))
     expect(res.status).toBe(200)
-    expect(forwarded()).toEqual({ base: 'https://api.example.com', path: '/query?limit=1', headers: { apikey: 'shared-key' }, body: undefined })
+    expect(forwarded()).toEqual({ target: 'https://api.example.com/query?limit=1', headers: { apikey: 'shared-key' }, body: undefined })
   })
 
   it('prefers an apikey the caller supplies, by query or header, and keeps it off the path', async () => {
     await fetchApp(new Request('https://www.example.com/proxy/default/query?apikey=caller-key&limit=1'))
     expect(forwarded()?.headers).toEqual({ apikey: 'caller-key' })
-    expect(forwarded()?.path).toBe('/query?limit=1')
+    expect(forwarded()?.target).toBe('https://api.example.com/query?limit=1')
     vi.mocked(proxyHandler).mockClear()
     await fetchApp(new Request('https://www.example.com/proxy/default/query', { headers: { apikey: 'caller-key' } }))
     expect(forwarded()?.headers).toEqual({ apikey: 'caller-key' })
@@ -109,8 +109,7 @@ describe('proxy route', () => {
     const res = await fetchApp(new Request('https://www.example.com/proxy/tiles/tiles/routes/tiles/0/0/0.pbf'))
     expect(res.status).toBe(200)
     expect(forwarded()).toEqual({
-      base: 'https://api.example.com',
-      path: '/tiles/routes/tiles/0/0/0.pbf',
+      target: 'https://api.example.com/tiles/routes/tiles/0/0/0.pbf',
       headers: { authorization: 'Bearer jwt', apikey: 'shared-key' },
       body: undefined
     })
@@ -120,7 +119,7 @@ describe('proxy route', () => {
     session.value = loggedIn
     const res = await fetchApp(new Request('https://www.example.com/proxy/stationEditor/query'))
     expect(res.status).toBe(200)
-    expect(forwarded()).toEqual({ base: 'https://saas.example.com', path: '/query', headers: { authorization: 'Bearer jwt' }, body: undefined })
+    expect(forwarded()).toEqual({ target: 'https://saas.example.com/query', headers: { authorization: 'Bearer jwt' }, body: undefined })
   })
 
   it('honors a custom proxy prefix', async () => {

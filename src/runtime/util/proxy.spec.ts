@@ -28,8 +28,7 @@ async function makeHandler (upstream: Response, forward: { headers?: Record<stri
   const { proxyHandler } = await import('./proxy')
   const app = createApp()
   app.use(eventHandler(event => proxyHandler(event, {
-    base: 'https://upstream.example.com/api/v2',
-    path: event.path,
+    target: `https://upstream.example.com/api/v2${event.path}`,
     headers: forward.headers ?? { apikey: 'backend-key' },
     body: forward.body
   })))

@@ -151,7 +151,7 @@ The hook receives a `ProxyRequest`:
 |-------|------|---------|
 | `event` | `H3Event` | The incoming request. |
 | `backend` | `string` | The backend's name, the path segment after the prefix. |
-| `path` | `string` | The path and query after the backend segment, such as `/query`. A caller-supplied `apikey` parameter is removed, as it is from the forwarded URL. |
+| `path` | `string` | The path and query after the backend segment, such as `/query`, as the backend receives it: dot segments are resolved, and a caller-supplied `apikey` parameter is removed. |
 | `sharedApikey` | `boolean` | True when the request goes upstream under the backend's own `apikey`: an anonymous caller on a backend with a fallback key, or a token with `apikeyWithToken`. False for a token alone, or a key the caller supplied. |
 | `body` | `string?` | Set to send this upstream in place of the request's own body. The proxy sends the new body's length. |
 | `headers` | `Record<string, string>` | Headers to set on the request sent upstream, replacing any the caller sent under the same names. Starts empty. |

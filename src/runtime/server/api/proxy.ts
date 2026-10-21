@@ -3,7 +3,7 @@ import type { H3Error, H3Event } from 'h3'
 import { useNitroApp } from 'nitropack/runtime'
 import { useRuntimeConfig } from '#imports'
 import { proxyHandler } from '../../util/proxy'
-import { CREDENTIAL_HEADERS, buildProxyHeaders, parseProxyRoute, stripApikeyParam } from '../../util/proxy-route'
+import { CREDENTIAL_HEADERS, buildProxyHeaders, buildProxyTarget, parseProxyRoute, pathUnderBase, stripApikeyParam } from '../../util/proxy-route'
 import { resolveProxyBackends } from '../../util/backends'
 import { DEFAULT_PROXY_PREFIX } from '../../util/defaults'
 import { traceEnabled, trace } from '../../util/log'
@@ -42,9 +42,11 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const requestApikey = (query.apikey ? query.apikey.toString() : '') || event.headers.get('apikey') || ''
   const headers = buildProxyHeaders(backend.apikey, auth.accessToken, requestApikey, backend.apikeyWithToken)
-  // The caller's apikey goes in `headers` when policy allows it, never on the
-  // forwarded URL, and never to a hook that might log the path.
-  const path = stripApikeyParam(route.strippedPath)
+  // What goes upstream, so a hook judges the path the backend receives: dot
+  // segments resolved, and the caller's apikey, which goes in `headers` when
+  // policy allows it, removed. A path that escapes the base throws here.
+  const target = buildProxyTarget(backend.base, stripApikeyParam(route.strippedPath))
+  const path = pathUnderBase(backend.base, target)
 
   const request: ProxyRequest = {
     event,
@@ -72,7 +74,7 @@ export default defineEventHandler(async (event) => {
     throw new Error(`[tlv2-proxy] A tlv2proxy:request hook set the credential header ${claimed}`)
   }
 
-  return proxyHandler(event, { base: backend.base, path, headers: { ...request.headers, ...headers }, body: request.body })
+  return proxyHandler(event, { target, headers: { ...request.headers, ...headers }, body: request.body })
 })
 
 // Answers a refusal as JSON whatever the request accepts. A proxy URL is never a

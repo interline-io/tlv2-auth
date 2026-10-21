@@ -8,8 +8,8 @@ export interface ProxyRequest {
   event: H3Event
   // The backend's name, the path segment after the proxy prefix.
   backend: string
-  // The path and query after the backend segment, such as '/query', with no
-  // caller-supplied apikey.
+  // The path and query after the backend segment, such as '/query', as the
+  // backend receives it: dot segments resolved, no caller-supplied apikey.
   path: string
   // True when the request goes upstream under the backend's own apikey, the
   // shared identity an app may want to gate.

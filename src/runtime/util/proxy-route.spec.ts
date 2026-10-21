@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseProxyRoute, buildProxyTarget, buildProxyHeaders, stripApikeyParam } from './proxy-route'
+import { parseProxyRoute, buildProxyTarget, buildProxyHeaders, pathUnderBase, stripApikeyParam } from './proxy-route'
 
 describe('parseProxyRoute', () => {
   it('parses name and stripped path', () => {
@@ -23,6 +23,26 @@ describe('parseProxyRoute', () => {
   })
   it('supports a custom prefix', () => {
     expect(parseProxyRoute('/api/proxy/default/query', '/api/proxy')).toEqual({ name: 'default', strippedPath: '/query' })
+  })
+})
+
+describe('pathUnderBase', () => {
+  it('gives the path the backend receives, dot segments resolved', () => {
+    const base = 'https://api.transit.land/api/v2'
+    for (const [requested, received] of [
+      ['/query?limit=1', '/query?limit=1'],
+      ['/x/../query', '/query'],
+      ['/%2e/query', '/query'],
+      ['/../v2/query', '/query'],
+      ['/query/', '/query/']
+    ] as const) {
+      expect(pathUnderBase(base, buildProxyTarget(base, requested)), requested).toBe(received)
+    }
+  })
+
+  it('works under a base with no path', () => {
+    const base = 'https://api.example.com'
+    expect(pathUnderBase(base, buildProxyTarget(base, '/x/../query'))).toBe('/query')
   })
 })
 
@@ -60,6 +80,18 @@ describe('buildProxyTarget', () => {
   it('throws on path traversal with ..', () => {
     expect(() => buildProxyTarget('https://api.example.com/api/v2', '/../../admin/users'))
       .toThrow('[tlv2-proxy] Path traversal detected')
+  })
+
+  it('throws on traversal into a sibling path that shares the base prefix', () => {
+    expect(() => buildProxyTarget('https://api.example.com/api/v2', '/../v2x/query'))
+      .toThrow('[tlv2-proxy] Path traversal detected')
+    expect(() => buildProxyTarget('https://api.example.com/api/v2/', '/../../v2x/query'))
+      .toThrow('[tlv2-proxy] Path traversal detected')
+  })
+
+  it('allows the base path itself', () => {
+    expect(buildProxyTarget('https://api.example.com/api/v2', '/../v2'))
+      .toBe('https://api.example.com/api/v2')
   })
 
   it('throws on encoded path traversal', () => {

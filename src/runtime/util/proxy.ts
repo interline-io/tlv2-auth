@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
-import { proxyRequest, sendStream, createError } from 'h3'
-import { CREDENTIAL_HEADERS, buildProxyTarget } from './proxy-route'
+import { proxyRequest, sendStream } from 'h3'
+import { CREDENTIAL_HEADERS } from './proxy-route'
 import { traceEnabled, trace } from './log'
 
 // Pinned at module load (before any app plugin can wrap globalThis.fetch) so the
@@ -10,10 +10,8 @@ const pinnedFetch = globalThis.fetch
 
 // Where proxyHandler sends a request, and what it sends.
 export interface ProxyForward {
-  // The backend's base URL.
-  base: string
-  // The path and query to append to `base`, with no caller-supplied apikey.
-  path: string
+  // The URL to send it to (see buildProxyTarget).
+  target: string
   // The headers to set upstream: the credential headers the proxy's policy chose
   // (see buildProxyHeaders), and any a tlv2proxy:request hook added.
   headers: Record<string, string>
@@ -24,13 +22,6 @@ export interface ProxyForward {
 // Forwards a request to a backend with the given headers, stripping the caller's
 // own credentials (session cookie, caller-supplied apikey).
 export async function proxyHandler (event: H3Event, forward: ProxyForward) {
-  if (!forward.base) {
-    throw createError({
-      statusCode: 500,
-      message: '[tlv2-auth] Proxy base URL is not configured for this backend.'
-    })
-  }
-
   // Strip caller-supplied credentials so nothing rides past the injected policy:
   // delete them from the incoming request (Node lowercases header names, so one
   // lowercase delete covers all casings), and pin the session cookie empty on the
@@ -51,7 +42,7 @@ export async function proxyHandler (event: H3Event, forward: ProxyForward) {
     }
   }
   const headers: Record<string, string> = { ...forward.headers, cookie: '' }
-  const target = buildProxyTarget(forward.base, forward.path)
+  const target = forward.target
 
   if (traceEnabled) {
     trace('proxy — target:', target, 'hasToken:', !!headers.authorization, 'hasApikey:', !!headers.apikey, 'bodyReplaced:', forward.body !== undefined)
