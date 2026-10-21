@@ -1,4 +1,4 @@
-import { defineNuxtModule, addPlugin, addServerPlugin, createResolver, addImports, addServerHandler, installModule } from '@nuxt/kit'
+import { defineNuxtModule, addPlugin, addServerPlugin, createResolver, addImports, addServerHandler, addTypeTemplate, installModule } from '@nuxt/kit'
 import { defu } from 'defu'
 import { DEFAULT_AUTH_PREFIX, DEFAULT_PROXY_PREFIX, AUTH0_PLACEHOLDER_DOMAIN } from './runtime/util/defaults'
 
@@ -177,7 +177,8 @@ export default defineNuxtModule<ModuleOptions>({
 
     // Mount the proxy only when explicitly enabled — it injects server-side
     // credentials, so legacy env vars alone must not expose it. Anti-abuse gating
-    // is the consuming app's job (see PROXY.md); unconfigured backends 404.
+    // is the consuming app's job, through the tlv2proxy:request hook (see
+    // PROXY.md); unconfigured backends 404.
     if (options.proxyEnabled) {
       // Log the resolved proxy backends once at server startup (no secrets).
       addServerPlugin(resolveRuntimeModule('server/plugins/log-proxy-backends'))
@@ -185,6 +186,11 @@ export default defineNuxtModule<ModuleOptions>({
         route: `${proxyPrefix}/**`,
         handler: resolveRuntimeModule('server/api/proxy')
       })
+      // Types the tlv2proxy:request hook in the app's server code.
+      addTypeTemplate({
+        filename: 'types/tlv2-auth-proxy.d.ts',
+        getContents: () => `export type { ProxyRequest } from '${resolveRuntimeModule('server/proxyRequest')}'\n`
+      }, { nitro: true })
     }
   }
 })

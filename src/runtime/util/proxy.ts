@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
-import { proxyRequest, sendStream, getQuery, createError } from 'h3'
-import { buildProxyTarget, buildProxyHeaders, stripApikeyParam } from './proxy-route'
+import { proxyRequest, sendStream } from 'h3'
+import { CREDENTIAL_HEADERS } from './proxy-route'
 import { traceEnabled, trace } from './log'
 
 // Pinned at module load (before any app plugin can wrap globalThis.fetch) so the
@@ -8,27 +8,20 @@ import { traceEnabled, trace } from './log'
 // downstream.
 const pinnedFetch = globalThis.fetch
 
-// Forwards a request to a backend, attaching auth headers (see buildProxyHeaders)
-// and stripping caller credentials (session cookie, caller-supplied apikey).
-export async function proxyHandler (
-  event: H3Event,
-  proxyBase: string,
-  backendApikey: string,
-  accessToken?: string,
-  pathOverride?: string,
-  apikeyWithToken?: boolean
-) {
-  if (!proxyBase) {
-    throw createError({
-      statusCode: 500,
-      message: '[tlv2-auth] Proxy base URL is not configured for this backend.'
-    })
-  }
+// Where proxyHandler sends a request, and what it sends.
+export interface ProxyForward {
+  // The upstream URL (see buildProxyTarget).
+  target: string
+  // The headers to set upstream: the credential headers the proxy's policy chose
+  // (see buildProxyHeaders), and any a tlv2proxy:request hook added.
+  headers: Record<string, string>
+  // A body to send in place of the request's own.
+  body?: string
+}
 
-  const query = getQuery(event)
-  const requestApikey = (query.apikey ? query.apikey.toString() : '') || event.headers.get('apikey') || ''
-  const headers = buildProxyHeaders(backendApikey, accessToken, requestApikey, apikeyWithToken)
-
+// Forwards a request to a backend with the given headers, stripping the caller's
+// own credentials (session cookie, caller-supplied apikey).
+export async function proxyHandler (event: H3Event, forward: ProxyForward) {
   // Strip caller-supplied credentials so nothing rides past the injected policy:
   // delete them from the incoming request (Node lowercases header names, so one
   // lowercase delete covers all casings), and pin the session cookie empty on the
@@ -39,23 +32,26 @@ export async function proxyHandler (
   // strict backend reject a present-but-empty Authorization.
   const reqHeaders = event.node?.req?.headers
   if (reqHeaders) {
-    delete reqHeaders.cookie
-    delete reqHeaders.apikey
-    delete reqHeaders.authorization
-    delete reqHeaders['proxy-authorization']
+    for (const name of CREDENTIAL_HEADERS) {
+      Reflect.deleteProperty(reqHeaders, name)
+    }
+    // h3 forwards the request's own content-length; fetch sets the length of
+    // a replacement body.
+    if (forward.body !== undefined) {
+      delete reqHeaders['content-length']
+    }
   }
-  headers.cookie = ''
-  const target = buildProxyTarget(proxyBase, stripApikeyParam(pathOverride ?? event.path))
+  const headers: Record<string, string> = { ...forward.headers, cookie: '' }
+  const target = forward.target
 
   if (traceEnabled) {
-    trace('proxy — target:', target, 'path:', pathOverride ?? event.path, 'hasToken:', !!accessToken, 'hasApikey:', !!headers.apikey)
+    trace('proxy — target:', target, 'hasToken:', !!headers.authorization, 'hasApikey:', !!headers.apikey, 'bodyReplaced:', forward.body !== undefined)
   }
 
   return proxyRequest(event, target, {
     fetch: pinnedFetch,
-    fetchOptions: {
-      redirect: 'manual'
-    },
+    // h3 spreads fetchOptions over the body it read, so a replacement wins.
+    fetchOptions: forward.body === undefined ? { redirect: 'manual' } : { redirect: 'manual', body: forward.body },
     headers,
     onResponse: streamBody
   })

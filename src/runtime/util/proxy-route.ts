@@ -36,22 +36,36 @@ export function stripApikeyParam (pathAndQuery: string): string {
   return rest ? `${pathAndQuery.slice(0, q)}?${rest}` : pathAndQuery.slice(0, q)
 }
 
-// Build the target URL from proxyBase and the stripped request path.
-// Throws if the resolved path escapes the proxyBase origin (SSRF) or pathname
-// (path traversal).
-export function buildProxyTarget (proxyBase: string, requestPath: string): string {
-  const proxyBaseUrl = new URL(proxyBase)
-  const proxyBasePathname = proxyBaseUrl.pathname === '/' ? '' : proxyBaseUrl.pathname
-  const newPath = proxyBasePathname + requestPath
-  const resolved = new URL(newPath, proxyBaseUrl.toString())
-  if (resolved.origin !== proxyBaseUrl.origin) {
-    throw new Error(`[tlv2-proxy] SSRF detected: ${requestPath}`)
-  }
-  if (proxyBasePathname && !resolved.pathname.startsWith(proxyBasePathname)) {
-    throw new Error(`[tlv2-proxy] Path traversal detected: ${requestPath}`)
-  }
-  return resolved.toString()
+// Where a request goes upstream.
+export interface ProxyTarget {
+  // The upstream URL.
+  target: string
+  // Its path and query below the backend's base, such as '/query'.
+  path: string
 }
+
+// The base joined to the stripped request path, resolved once, dot segments
+// included. A trailing slash on the base is ignored.
+//
+// Undefined when the result escapes the base's origin (SSRF) or its path
+// (traversal), including into a sibling that shares the base's prefix: /api/v2x
+// is outside /api/v2.
+export function buildProxyTarget (proxyBase: string, requestPath: string): ProxyTarget | undefined {
+  const proxyBaseUrl = new URL(proxyBase)
+  const baseRoot = proxyBaseUrl.pathname.replace(/\/+$/, '')
+  const resolved = new URL(baseRoot + requestPath, proxyBaseUrl)
+  if (resolved.origin !== proxyBaseUrl.origin) {
+    return undefined
+  }
+  if (baseRoot && resolved.pathname !== baseRoot && !resolved.pathname.startsWith(`${baseRoot}/`)) {
+    return undefined
+  }
+  return { target: resolved.toString(), path: resolved.pathname.slice(baseRoot.length) + resolved.search }
+}
+
+// The headers that carry credentials, lowercase. Only the proxy's policy sets
+// them upstream; a caller's copies are stripped.
+export const CREDENTIAL_HEADERS: readonly string[] = ['authorization', 'apikey', 'cookie', 'proxy-authorization']
 
 // Build auth headers. A valid token is exclusive (Bearer only) unless
 // apikeyWithToken; otherwise a token-less request gets an apikey — a
