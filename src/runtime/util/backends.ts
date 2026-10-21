@@ -7,7 +7,7 @@ export interface ProxyBackendConfig {
 }
 
 interface ProxyConfig {
-  tlv2proxy?: { backends?: Record<string, ProxyBackendConfig> }
+  tlv2proxy?: { meBackend?: string, backends?: Record<string, ProxyBackendConfig> }
   // Legacy (migration): tlv2.proxyBase.default (endpoint) + tlv2.graphqlApikey.
   tlv2?: { graphqlApikey?: string, proxyBase?: Record<string, string> }
 }

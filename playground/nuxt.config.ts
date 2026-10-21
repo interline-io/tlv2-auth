@@ -21,8 +21,10 @@ export default defineNuxtConfig({
     // Proxy backends — mounted at /proxy/{name} (proxyEnabled above). Set
     // values via NUXT_TLV2PROXY_BACKENDS_<NAME>_<FIELD> (e.g. _DEFAULT_APIKEY).
     tlv2proxy: {
+      meBackend: 'graphql',
       backends: {
         default: { base: 'https://api.transit.land/api/v2', apikey: '' },
+        graphql: { base: 'https://api.transit.land/api/v2/query', apikey: '' },
         stationEditor: { base: 'https://saas.transit.land/api/v2', requireToken: true },
       },
     },

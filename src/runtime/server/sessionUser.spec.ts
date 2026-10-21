@@ -14,7 +14,15 @@ function withToken (token: string | Error) {
 const me = { id: 7, name: 'A', email: 'a@example.com', roles: ['tl_user'], external_data: {} }
 
 function config (apikeyWithToken?: boolean) {
-  return { tlv2proxy: { backends: { default: { base: 'https://api.example.com', apikey: 'shared-key', apikeyWithToken } } } }
+  return {
+    tlv2proxy: {
+      meBackend: 'graphql',
+      backends: {
+        default: { base: 'https://api.example.com', apikey: 'shared-key' },
+        graphql: { base: 'https://api.example.com/query', apikey: 'shared-key', apikeyWithToken }
+      }
+    }
+  }
 }
 
 describe('getSessionUser', () => {
@@ -40,7 +48,7 @@ describe('getSessionUser', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('enriches claims with me, fetched with the user token only', async () => {
+  it('enriches claims with me, fetched from the me backend\'s base with the user token only', async () => {
     const user = await getSessionUser(withToken('jwt'), config())
     expect(user).toEqual({ sub: 'u1', email: 'a@example.com', tlv2_me: me })
     const [url, init] = fetchMock.mock.calls[0]!
@@ -64,8 +72,16 @@ describe('getSessionUser', () => {
     expect(await getSessionUser(withToken('jwt'), config())).toEqual({ sub: 'u1', email: 'a@example.com' })
   })
 
-  it('returns plain claims when no default backend is configured', async () => {
+  it('returns plain claims when no me backend is configured', async () => {
     expect(await getSessionUser(withToken('jwt'), {})).toEqual({ sub: 'u1', email: 'a@example.com' })
+    const { meBackend: _, ...unnamed } = config().tlv2proxy
+    expect(await getSessionUser(withToken('jwt'), { tlv2proxy: unnamed })).toEqual({ sub: 'u1', email: 'a@example.com' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('returns plain claims when the me backend is not declared', async () => {
+    const missing = { tlv2proxy: { ...config().tlv2proxy, meBackend: 'missing' } }
+    expect(await getSessionUser(withToken('jwt'), missing)).toEqual({ sub: 'u1', email: 'a@example.com' })
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })

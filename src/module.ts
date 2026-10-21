@@ -119,9 +119,11 @@ export default defineNuxtModule<ModuleOptions>({
     })
 
     // Private per-backend proxy config (base + apikey + policy, keyed by name).
-    // The `default` backend also serves /auth/session enrichment and SSR injection.
+    // meBackend names the backend whose base is the GraphQL endpoint, for the
+    // session's `me` lookup; declared empty so NUXT_TLV2PROXY_ME_BACKEND binds.
     Object.assign(nuxt.options.runtimeConfig, defu(nuxt.options.runtimeConfig, {
       tlv2proxy: {
+        meBackend: '',
         backends: {},
       },
       // Legacy migration bridge (see resolveProxyBackends); only `default` binds

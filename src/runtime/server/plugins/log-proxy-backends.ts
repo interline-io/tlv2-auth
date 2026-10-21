@@ -4,7 +4,7 @@ import { DEFAULT_PROXY_PREFIX } from '../../util/defaults'
 
 // Logs the resolved proxy backends once at server startup so a deploy can be
 // verified from the logs. Prints each backend's base and policy flags, never
-// the apikey value.
+// the apikey value, and warns when the `me` lookup has no backend to use.
 export default defineNitroPlugin(() => {
   const config = useRuntimeConfig()
   const prefix = config.public?.tlv2proxy?.prefix || DEFAULT_PROXY_PREFIX
@@ -23,5 +23,12 @@ export default defineNitroPlugin(() => {
     ].filter(Boolean).join(',')
     return `${name} → ${b?.base || '(no base!)'}${flags ? ` [${flags}]` : ''}`
   }).join(', ')
-  console.log(`[tlv2-proxy] ${prefix} — ${names.length} backend(s): ${summary}`)
+  const meBackend = config.tlv2proxy?.meBackend
+  console.log(`[tlv2-proxy] ${prefix} — ${names.length} backend(s): ${summary}; me → ${meBackend || '(none)'}`)
+  // Without a usable me backend, signed-in users get their auth0 claims but no roles.
+  if (!meBackend) {
+    console.warn('[tlv2-proxy] tlv2proxy.meBackend is unset — signed-in users get no roles')
+  } else if (!backends[meBackend]?.base) {
+    console.warn(`[tlv2-proxy] tlv2proxy.meBackend names "${meBackend}", which has no base — signed-in users get no roles`)
+  }
 })

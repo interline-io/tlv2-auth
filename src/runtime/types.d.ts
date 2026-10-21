@@ -21,6 +21,7 @@ declare module 'nuxt/schema' {
       proxyBase?: Record<string, string>
     }
     tlv2proxy: {
+      meBackend: string
       backends: Record<string, ProxyBackendConfig>
     }
   }

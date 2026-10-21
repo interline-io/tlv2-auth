@@ -12,10 +12,10 @@ import { traceEnabled, trace, traceUserClaims } from '../util/log'
 // /auth/session response; on timeout the query returns null (enrichment skipped).
 const ENRICH_TIMEOUT_MS = 1000
 
-// Fetch the GraphQL `me` record. Returns null on unreachable/timeout/error —
-// enrichment is best-effort.
-async function fetchMeData (proxyBase: string, headers: Record<string, string>) {
-  const response = await fetch(`${proxyBase}/query`, {
+// Fetch the GraphQL `me` record from the GraphQL endpoint. Returns null on
+// unreachable/timeout/error — enrichment is best-effort.
+async function fetchMeData (endpoint: string, headers: Record<string, string>) {
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: '{ me { id name email roles external_data } }' }),
@@ -38,7 +38,7 @@ async function fetchMeData (proxyBase: string, headers: Record<string, string>) 
       }
       console.warn(
         `[tlv2-auth] session enrich: GraphQL me query returned ${response.status} — check iss/aud`,
-        { url: `${proxyBase}/query`, hasApikey: !!headers.apikey, jwt: jwtInfo }
+        { url: endpoint, hasApikey: !!headers.apikey, jwt: jwtInfo }
       )
     }
     return null
@@ -51,8 +51,9 @@ async function fetchMeData (proxyBase: string, headers: Record<string, string>) 
 }
 
 // Resolve the current user's claims, enriched with the GraphQL `me` record from
-// the `default` backend. Returns null when anonymous, or the auth0 claims marked
-// `tlv2_degraded` when there's no usable token.
+// the backend tlv2proxy.meBackend names, whose base is the GraphQL endpoint.
+// Returns null when anonymous, or the auth0 claims marked `tlv2_degraded` when
+// there's no usable token.
 export async function getSessionUser (
   event: H3Event,
   config: Parameters<typeof resolveProxyBackends>[0]
@@ -72,10 +73,11 @@ export async function getSessionUser (
     return { ...auth.user, tlv2_degraded: true }
   }
 
-  const identity = resolveProxyBackends(config).default
+  const meBackend = config.tlv2proxy?.meBackend
+  const identity = meBackend ? resolveProxyBackends(config)[meBackend] : undefined
   if (!identity?.base) {
     if (traceEnabled) {
-      trace('getSessionUser — no default backend configured, returning user claims without enrichment')
+      trace('getSessionUser — no me backend configured, returning user claims without enrichment')
     }
     return auth.user
   }
