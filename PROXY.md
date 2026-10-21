@@ -120,8 +120,9 @@ in-process SSR fetches with a per-boot secret so the server's own loopback
 traffic passes. Scripted abuse then requires re-visiting a page whenever the
 token expires, which is where rate limiting and bot detection live.
 
-The proxy answers its own refusals (an unknown backend's 404, the 401s above)
-as JSON, whatever the request accepts. A proxy URL is never a page, so a
+The proxy answers its own refusals (a 404 for an unknown backend or a path
+outside the backend's base, the 401s above) as JSON, whatever the request
+accepts. A proxy URL is never a page, so a
 navigation to one, such as a download link, gets the JSON rather than Nuxt's
 HTML error page.
 
@@ -134,12 +135,10 @@ refuses itself never reaches the hook. Register it in a server plugin:
 
 ```ts
 // server/plugins/proxy-policy.ts
-import { createError } from 'h3'
-
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('tlv2proxy:request', async (request) => {
     if (request.sharedApikey && !(await hasValidToken(request.event))) {
-      throw createError({ statusCode: 403, statusMessage: 'Forbidden', message: 'Missing or invalid proxy token' })
+      request.refusal = { statusCode: 403, statusMessage: 'Forbidden', message: 'Missing or invalid proxy token' }
     }
   })
 })
@@ -155,6 +154,7 @@ The hook receives a `ProxyRequest`:
 | `sharedApikey` | `boolean` | True when the request goes upstream under the backend's own `apikey`: an anonymous caller on a backend with a fallback key, or a token with `apikeyWithToken`. False for a token alone, or a key the caller supplied. |
 | `body` | `string?` | Set to send this upstream in place of the request's own body. The proxy sends the new body's length. |
 | `headers` | `Record<string, string>` | Headers to set on the request sent upstream, replacing any the caller sent under the same names. Starts empty. |
+| `refusal` | `ProxyRefusal?` | Set to refuse the request, as `{ statusCode, statusMessage?, message }`. The proxy answers it as JSON and forwards nothing. |
 
 A hook may not set a credential header (`authorization`, `apikey`, `cookie`,
 `proxy-authorization`): those come only from the proxy's credential policy, and
@@ -163,12 +163,12 @@ caller's copy, but when no hook sets it, the caller's copy goes upstream. An
 upstream that trusts a header from the proxy should therefore verify it, with a
 signature for instance, rather than trust its presence.
 
-A hook refuses a request by throwing an h3 error with a status below 500, which
-the proxy answers as JSON; no later hook runs and nothing is forwarded. Any
-other error is a failure, and Nitro reports it as one. Hooks run in the order
-they were registered, so one plugin that registers a single hook keeps its
-checks in code order. A hook that needs the request body reads it with h3's
-`readRawBody(request.event)`.
+A refusal is a value, not an error: the hook sets `refusal` and returns. Every
+registered hook still runs, in the order they were registered, so a hook that
+finds `refusal` already set should leave the request alone; one plugin that
+registers a single hook keeps its checks in code order. An error a hook throws
+is a failure, and Nitro reports it as one. A hook that needs the request body
+reads it with h3's `readRawBody(request.event)`.
 
 ## Client usage
 

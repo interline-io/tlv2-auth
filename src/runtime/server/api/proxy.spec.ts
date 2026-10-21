@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createApp, createError, toWebHandler } from 'h3'
+import { createApp, toWebHandler } from 'h3'
 import { createHooks } from 'hookable'
 import type { SessionContext } from '../useSession'
 import type { ProxyRequest } from '../proxyRequest'
@@ -165,31 +165,36 @@ describe('the tlv2proxy:request hook', () => {
     expect(forwarded()?.headers).toEqual({ 'x-vetted': 'signed', 'apikey': 'shared-key' })
   })
 
-  it('fails a request whose hook sets a credential header, forwarding nothing', async () => {
+  it('logs and fails a request whose hook sets a credential header, forwarding nothing', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     for (const name of ['Authorization', 'apikey', 'Cookie', 'proxy-authorization']) {
       vi.mocked(proxyHandler).mockClear()
-      errors.length = 0
+      logged.mockClear()
       hooks.value = createHooks<ProxyHooks>()
       hooks.value.hook('tlv2proxy:request', (request) => {
         request.headers[name] = 'forged'
       })
       const res = await fetchApp(new Request('https://www.example.com/proxy/default/query'))
       expect(res.status, name).toBe(500)
-      expect(errors[0]?.message, name).toContain(`credential header ${name}`)
+      expect((await res.json()).message, name).toContain('credential header')
+      expect(String(logged.mock.calls[0]?.[0]), name).toContain(`credential header ${name}`)
       expect(proxyHandler, name).not.toHaveBeenCalled()
     }
+    logged.mockRestore()
   })
 
-  it('answers a hook\'s refusal as JSON, and runs no later hook and forwards nothing', async () => {
-    const later = vi.fn()
-    hooks.value.hook('tlv2proxy:request', () => {
-      throw createError({ statusCode: 403, statusMessage: 'Forbidden', message: 'Missing proxy token' })
+  it('answers a hook\'s refusal as JSON and forwards nothing, and later hooks see it', async () => {
+    const seen: unknown[] = []
+    hooks.value.hook('tlv2proxy:request', (request) => {
+      request.refusal = { statusCode: 403, statusMessage: 'Forbidden', message: 'Missing proxy token' }
     })
-    hooks.value.hook('tlv2proxy:request', later)
+    hooks.value.hook('tlv2proxy:request', (request) => {
+      seen.push(request.refusal?.statusCode)
+    })
     const res = await fetchApp(new Request('https://www.example.com/proxy/default/query', { headers: { accept: 'text/html' } }))
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({ statusCode: 403, statusMessage: 'Forbidden', message: 'Missing proxy token' })
-    expect(later).not.toHaveBeenCalled()
+    expect(seen).toEqual([403])
     expect(proxyHandler).not.toHaveBeenCalled()
   })
 

@@ -36,22 +36,22 @@ export function stripApikeyParam (pathAndQuery: string): string {
   return rest ? `${pathAndQuery.slice(0, q)}?${rest}` : pathAndQuery.slice(0, q)
 }
 
-// Build the target URL from proxyBase and the stripped request path.
-// Throws if the resolved path escapes the proxyBase origin (SSRF) or pathname
-// (path traversal).
-export function buildProxyTarget (proxyBase: string, requestPath: string): string {
+// Build the target URL from proxyBase and the stripped request path, or
+// undefined when the resolved path escapes the proxyBase origin (SSRF) or
+// pathname (path traversal).
+export function buildProxyTarget (proxyBase: string, requestPath: string): string | undefined {
   const proxyBaseUrl = new URL(proxyBase)
   const proxyBasePathname = proxyBaseUrl.pathname === '/' ? '' : proxyBaseUrl.pathname
   const newPath = proxyBasePathname + requestPath
   const resolved = new URL(newPath, proxyBaseUrl.toString())
   if (resolved.origin !== proxyBaseUrl.origin) {
-    throw new Error(`[tlv2-proxy] SSRF detected: ${requestPath}`)
+    return undefined
   }
   // Under the base path itself, not a sibling that shares its prefix:
   // /api/v2x is outside /api/v2.
   const baseRoot = proxyBasePathname.replace(/\/$/, '')
   if (baseRoot && resolved.pathname !== baseRoot && !resolved.pathname.startsWith(`${baseRoot}/`)) {
-    throw new Error(`[tlv2-proxy] Path traversal detected: ${requestPath}`)
+    return undefined
   }
   return resolved.toString()
 }

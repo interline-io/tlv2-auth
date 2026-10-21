@@ -36,13 +36,13 @@ describe('pathUnderBase', () => {
       ['/../v2/query', '/query'],
       ['/query/', '/query/']
     ] as const) {
-      expect(pathUnderBase(base, buildProxyTarget(base, requested)), requested).toBe(received)
+      expect(pathUnderBase(base, buildProxyTarget(base, requested)!), requested).toBe(received)
     }
   })
 
   it('works under a base with no path', () => {
     const base = 'https://api.example.com'
-    expect(pathUnderBase(base, buildProxyTarget(base, '/x/../query'))).toBe('/query')
+    expect(pathUnderBase(base, buildProxyTarget(base, '/x/../query')!)).toBe('/query')
   })
 })
 
@@ -77,16 +77,16 @@ describe('buildProxyTarget', () => {
       .toBe('https://api.example.com/v2/query?limit=10')
   })
 
-  it('throws on path traversal with ..', () => {
-    expect(() => buildProxyTarget('https://api.example.com/api/v2', '/../../admin/users'))
-      .toThrow('[tlv2-proxy] Path traversal detected')
+  it('gives nothing for path traversal with ..', () => {
+    expect(buildProxyTarget('https://api.example.com/api/v2', '/../../admin/users'))
+      .toBeUndefined()
   })
 
-  it('throws on traversal into a sibling path that shares the base prefix', () => {
-    expect(() => buildProxyTarget('https://api.example.com/api/v2', '/../v2x/query'))
-      .toThrow('[tlv2-proxy] Path traversal detected')
-    expect(() => buildProxyTarget('https://api.example.com/api/v2/', '/../../v2x/query'))
-      .toThrow('[tlv2-proxy] Path traversal detected')
+  it('gives nothing for traversal into a sibling path that shares the base prefix', () => {
+    expect(buildProxyTarget('https://api.example.com/api/v2', '/../v2x/query'))
+      .toBeUndefined()
+    expect(buildProxyTarget('https://api.example.com/api/v2/', '/../../v2x/query'))
+      .toBeUndefined()
   })
 
   it('allows the base path itself', () => {
@@ -94,9 +94,9 @@ describe('buildProxyTarget', () => {
       .toBe('https://api.example.com/api/v2')
   })
 
-  it('throws on encoded path traversal', () => {
-    expect(() => buildProxyTarget('https://api.example.com/api/v2', '/%2e%2e/%2e%2e/admin'))
-      .toThrow('[tlv2-proxy] Path traversal detected')
+  it('gives nothing for encoded path traversal', () => {
+    expect(buildProxyTarget('https://api.example.com/api/v2', '/%2e%2e/%2e%2e/admin'))
+      .toBeUndefined()
   })
 
   it('allows normal subpaths that stay within proxyBase', () => {
@@ -104,9 +104,9 @@ describe('buildProxyTarget', () => {
       .toBe('https://api.example.com/api/v2/feeds/123')
   })
 
-  it('throws on scheme-relative SSRF (root proxyBase)', () => {
-    expect(() => buildProxyTarget('https://api.example.com', '//attacker.com/data'))
-      .toThrow('[tlv2-proxy] SSRF detected')
+  it('gives nothing for scheme-relative SSRF (root proxyBase)', () => {
+    expect(buildProxyTarget('https://api.example.com', '//attacker.com/data'))
+      .toBeUndefined()
   })
 
   it('is safe from scheme-relative SSRF with subpath proxyBase', () => {
@@ -115,9 +115,9 @@ describe('buildProxyTarget', () => {
       .toBe('https://api.example.com/api/v2//attacker.com/data')
   })
 
-  it('throws on scheme-relative SSRF with port', () => {
-    expect(() => buildProxyTarget('https://api.example.com', '//attacker.com:6379/data'))
-      .toThrow('[tlv2-proxy] SSRF detected')
+  it('gives nothing for scheme-relative SSRF with port', () => {
+    expect(buildProxyTarget('https://api.example.com', '//attacker.com:6379/data'))
+      .toBeUndefined()
   })
 })
 
