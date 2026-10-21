@@ -40,12 +40,10 @@ export default defineNuxtConfig({
     },
     // Proxy backends — the module mounts each at /{proxyPrefix}/{name} and
     // injects credentials server-side. Set secrets via env
-    // (NUXT_TLV2PROXY_BACKENDS_GRAPHQL_APIKEY). See PROXY.md.
+    // (NUXT_TLV2PROXY_BACKENDS_DEFAULT_APIKEY). See PROXY.md.
     tlv2proxy: {
-      // The backend whose base is the GraphQL endpoint, for the session's `me` lookup.
-      meBackend: 'graphql',
       backends: {
-        graphql: { base: 'https://api.transit.land/api/v2/query', apikey: '' },
+        default: { base: 'https://api.transit.land/api/v2', apikey: '' },
       },
     },
     public: {
@@ -113,7 +111,7 @@ tlv2proxy: {
 }
 ```
 
-Supply secrets via `NUXT_TLV2PROXY_BACKENDS_<NAME>_<FIELD>` (e.g. `NUXT_TLV2PROXY_BACKENDS_DEFAULT_APIKEY`). `tlv2proxy.meBackend` names the backend the session's `me` lookup posts to for the user's roles; its base is the GraphQL endpoint itself.
+Supply secrets via `NUXT_TLV2PROXY_BACKENDS_<NAME>_<FIELD>` (e.g. `NUXT_TLV2PROXY_BACKENDS_DEFAULT_APIKEY`). The session's `me` lookup, which adds the user's roles, posts to the base of the backend `tlv2proxy.meBackend` names plus `tlv2proxy.mePath`: by default, the `default` backend plus `/query`.
 
 **[PROXY.md](PROXY.md) documents the rest** — the credential rules (token-exclusive apikey, `requireToken`, `apikeyWithToken`), the security model (including the recommended anti-abuse gate pattern for apps that configure an anonymous apikey), and how to call the proxy from client code, MapLibre, and SSR.
 

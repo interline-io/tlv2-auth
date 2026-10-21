@@ -37,7 +37,8 @@ function backends (extra: Record<string, any> = {}) {
         default: { base: 'https://api.example.com', apikey: 'shared-key' },
         tiles: { base: 'https://api.example.com', apikey: 'shared-key', apikeyWithToken: true },
         stationEditor: { base: 'https://saas.example.com', requireToken: true },
-        rest: { base: 'https://api.example.com/api/v2/', apikey: 'shared-key' }
+        rest: { base: 'https://api.example.com/api/v2/', apikey: 'shared-key' },
+        graphql: { base: 'https://api.example.com/api/v2/query', apikey: 'shared-key' }
       }
     },
     ...extra
@@ -285,6 +286,22 @@ describe('raw request paths', () => {
     expect(res.status).toBe(200)
     expect(seen).toEqual(['/query'])
     expect(forwarded()?.target).toBe('https://api.example.com/api/v2/query')
+  })
+
+  it('forwards a bare backend to its base exactly, giving a hook an empty path', async () => {
+    const seen: string[] = []
+    hooks.value.hook('tlv2proxy:request', (request) => {
+      seen.push(request.path)
+    })
+    for (const path of ['/proxy/graphql', '/proxy/graphql?x=1']) {
+      const res = await plainApp({ method: 'POST', path, headers: {} })
+      expect(res.status, path).toBe(200)
+    }
+    expect(seen).toEqual(['', '?x=1'])
+    expect(vi.mocked(proxyHandler).mock.calls.map(c => c[1].target)).toEqual([
+      'https://api.example.com/api/v2/query',
+      'https://api.example.com/api/v2/query?x=1'
+    ])
   })
 
   it('logs and 404s a path outside the backend before any hook runs, keeping the caller\'s apikey out of the log', async () => {

@@ -99,6 +99,7 @@ export default defineNuxtModule<ModuleOptions>({
     // Required for Cloudflare Workers compatibility where async Nitro
     // plugins don't complete before the first request.
     addServerPlugin(resolveRuntimeModule('server/plugins/auth0-init'))
+    addServerPlugin(resolveRuntimeModule('server/plugins/log-me-endpoint'))
     await installModule('@auth0/auth0-nuxt', {
       routes: {
         login: `${authPrefix}/login`,
@@ -119,11 +120,11 @@ export default defineNuxtModule<ModuleOptions>({
     })
 
     // Private per-backend proxy config (base + apikey + policy, keyed by name).
-    // meBackend names the backend whose base is the GraphQL endpoint, for the
-    // session's `me` lookup; declared empty so NUXT_TLV2PROXY_ME_BACKEND binds.
+    // The session's `me` lookup posts to the meBackend backend's base plus mePath.
     Object.assign(nuxt.options.runtimeConfig, defu(nuxt.options.runtimeConfig, {
       tlv2proxy: {
-        meBackend: '',
+        meBackend: 'default',
+        mePath: '/query',
         backends: {},
       },
       // Legacy migration bridge (see resolveProxyBackends); only `default` binds

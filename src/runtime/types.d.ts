@@ -22,6 +22,7 @@ declare module 'nuxt/schema' {
     }
     tlv2proxy: {
       meBackend: string
+      mePath: string
       backends: Record<string, ProxyBackendConfig>
     }
   }

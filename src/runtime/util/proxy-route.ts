@@ -1,7 +1,9 @@
 // Pure functions for proxy request routing/building — no framework dependencies.
 
 // Parse `/{prefix}/{name}/rest?query` → { name, strippedPath: '/rest?query' }.
-// Returns null when the path isn't under the prefix with a backend segment.
+// A bare `/{prefix}/{name}` gives an empty strippedPath, which reaches the
+// backend's base exactly. Returns null when the path isn't under the prefix
+// with a backend segment.
 export function parseProxyRoute (path: string, prefix: string): { name: string, strippedPath: string } | null {
   if (!path.startsWith(`${prefix}/`)) {
     return null
@@ -16,7 +18,7 @@ export function parseProxyRoute (path: string, prefix: string): { name: string, 
     return null
   }
   const tail = slash === -1 ? '' : pathPart.slice(slash)
-  return { name, strippedPath: (tail || '/') + query }
+  return { name, strippedPath: tail + query }
 }
 
 // Remove the `apikey` query param from a path+query string. Its value is

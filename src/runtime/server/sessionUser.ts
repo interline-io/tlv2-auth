@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { enrichUserClaims } from '../util/enrich'
-import { resolveProxyBackends } from '../util/backends'
+import { resolveMeEndpoint, type SessionProxyConfig } from '../util/backends'
 import { buildProxyHeaders } from '../util/proxy-route'
 import { useAuth0Session } from './useSession'
 import { traceEnabled, trace, traceUserClaims } from '../util/log'
@@ -50,13 +50,12 @@ async function fetchMeData (endpoint: string, headers: Record<string, string>) {
   return json?.data?.me ?? null
 }
 
-// Resolve the current user's claims, enriched with the GraphQL `me` record from
-// the backend tlv2proxy.meBackend names, whose base is the GraphQL endpoint.
-// Returns null when anonymous, or the auth0 claims marked `tlv2_degraded` when
-// there's no usable token.
+// Resolve the current user's claims, enriched with the GraphQL `me` record (see
+// resolveMeEndpoint). Returns null when anonymous, or the auth0 claims marked
+// `tlv2_degraded` when there's no usable token.
 export async function getSessionUser (
   event: H3Event,
-  config: Parameters<typeof resolveProxyBackends>[0]
+  config: SessionProxyConfig
 ): Promise<Record<string, any> | null> {
   const auth = await useAuth0Session(event)
   if (traceEnabled) {
@@ -73,9 +72,8 @@ export async function getSessionUser (
     return { ...auth.user, tlv2_degraded: true }
   }
 
-  const meBackend = config.tlv2proxy?.meBackend
-  const identity = meBackend ? resolveProxyBackends(config)[meBackend] : undefined
-  if (!identity?.base) {
+  const endpoint = resolveMeEndpoint(config)
+  if (!endpoint) {
     if (traceEnabled) {
       trace('getSessionUser — no me backend configured, returning user claims without enrichment')
     }
@@ -85,9 +83,9 @@ export async function getSessionUser (
   // Token-exclusive, via the same helper the proxy uses: authenticate `me` as
   // the user; only attach the shared apikey when the backend opts in with
   // apikeyWithToken, so roles never resolve under the shared key's identity.
-  const headers = buildProxyHeaders(identity.apikey, auth.accessToken, undefined, identity.apikeyWithToken)
+  const headers = buildProxyHeaders(endpoint.backend.apikey, auth.accessToken, undefined, endpoint.backend.apikeyWithToken)
 
-  const meData = await fetchMeData(identity.base, headers)
+  const meData = await fetchMeData(endpoint.url, headers)
   if (traceEnabled) {
     trace('getSessionUser — fetchMeData result:', meData)
   }

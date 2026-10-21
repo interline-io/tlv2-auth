@@ -91,26 +91,29 @@ Move to `NUXT_TLV2PROXY_BACKENDS_<NAME>_*`; the bridge is temporary.
 - Callers may still pass their own key via `?apikey=` or an `apikey` header on
   anonymous token-less requests.
 
-### The `me` backend
+### The `me` lookup
 
 The session's `me` lookup adds the user's roles to `/auth/session` and the SSR
-session. It posts to the base of the backend that `tlv2proxy.meBackend` names,
-as given, so that backend's base is the GraphQL endpoint itself:
+session. It posts to the base of the backend `tlv2proxy.meBackend` names, plus
+`tlv2proxy.mePath`: by default, the `default` backend's base plus `/query`. An
+app whose GraphQL backend's base is the endpoint itself names that backend and
+an empty path:
 
 ```ts
 tlv2proxy: {
   meBackend: 'graphql',
+  mePath: '',
   backends: {
-    graphql: { base: 'https://api.transit.land/api/v2/query', apikey: '' },
+    graphql: { base: 'https://api.transit.land/api/v2/query' },
   },
 }
 ```
 
-The lookup follows the backend's credential rules: the user's token alone, or
+The lookup follows that backend's credential rules: the user's token alone, or
 with the apikey when the backend sets `apikeyWithToken`. It goes straight
-upstream, not through the proxy route, so no `tlv2proxy:request` hook sees it.
-Without `meBackend`, or when it names a backend with no base, signed-in users
-get their auth0 claims without roles, and the server warns at startup.
+upstream rather than through the proxy route, so the lookup bypasses every
+`tlv2proxy:request` hook. When the backend has no base, signed-in users get
+their auth0 claims without roles, and the server warns at startup.
 
 ## Security model
 
@@ -169,7 +172,7 @@ The hook receives a `ProxyRequest`:
 |-------|------|---------|
 | `event` | `H3Event` | The incoming request. Read-only. |
 | `backend` | `string` | The backend's name, the path segment after the prefix. Read-only. |
-| `path` | `string` | The path and query after the backend segment, such as `/query`, exactly as forwarded: dot segments are resolved, and a caller-supplied `apikey` parameter is removed. Read-only. |
+| `path` | `string` | The path and query after the backend segment, such as `/query`, or empty for a bare `/{proxyPrefix}/{name}`, exactly as forwarded: dot segments are resolved, and a caller-supplied `apikey` parameter is removed. Read-only. |
 | `sharedApikey` | `boolean` | True when the request goes upstream under the backend's own `apikey`: an anonymous caller on a backend with a fallback key, or a token with `apikeyWithToken`. False for a token alone, or a key the caller supplied. Read-only. |
 | `body` | `string?` | Set to send this upstream in place of the request's own body. The proxy sends the new body's length. Not allowed on a GET or HEAD. |
 | `headers` | `Record<string, string>` | Headers to set on the request sent upstream, replacing any the caller sent under the same names. Starts empty. |

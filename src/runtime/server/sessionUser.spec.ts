@@ -13,13 +13,16 @@ function withToken (token: string | Error) {
 
 const me = { id: 7, name: 'A', email: 'a@example.com', roles: ['tl_user'], external_data: {} }
 
-function config (apikeyWithToken?: boolean) {
+// The module's defaults, `default` plus `/query`, with a second backend whose
+// base is the GraphQL endpoint. Each backend has its own apikey, so a test can
+// tell which one went upstream.
+function config (apikeyWithToken?: boolean, me: { meBackend?: string, mePath?: string } = { meBackend: 'default', mePath: '/query' }) {
   return {
     tlv2proxy: {
-      meBackend: 'graphql',
+      ...me,
       backends: {
-        default: { base: 'https://api.example.com', apikey: 'shared-key' },
-        graphql: { base: 'https://api.example.com/query', apikey: 'shared-key', apikeyWithToken }
+        default: { base: 'https://api.example.com', apikey: 'default-key', apikeyWithToken },
+        graphql: { base: 'https://graphql.example.com/v2/query', apikey: 'graphql-key', apikeyWithToken }
       }
     }
   }
@@ -48,7 +51,7 @@ describe('getSessionUser', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('enriches claims with me, fetched from the me backend\'s base with the user token only', async () => {
+  it('enriches claims with me, fetched from the default backend plus /query with the user token only', async () => {
     const user = await getSessionUser(withToken('jwt'), config())
     expect(user).toEqual({ sub: 'u1', email: 'a@example.com', tlv2_me: me })
     const [url, init] = fetchMock.mock.calls[0]!
@@ -61,7 +64,14 @@ describe('getSessionUser', () => {
     await getSessionUser(withToken('jwt'), config(true))
     const [, init] = fetchMock.mock.calls[0]!
     expect(init.headers.authorization).toBe('Bearer jwt')
-    expect(init.headers.apikey).toBe('shared-key')
+    expect(init.headers.apikey).toBe('default-key')
+  })
+
+  it('fetches me from the backend meBackend names, at its base plus mePath, under that backend\'s apikey', async () => {
+    await getSessionUser(withToken('jwt'), config(true, { meBackend: 'graphql', mePath: '' }))
+    const [url, init] = fetchMock.mock.calls[0]!
+    expect(url).toBe('https://graphql.example.com/v2/query')
+    expect(init.headers.apikey).toBe('graphql-key')
   })
 
   it('falls back to plain claims when me fails', async () => {
@@ -72,16 +82,9 @@ describe('getSessionUser', () => {
     expect(await getSessionUser(withToken('jwt'), config())).toEqual({ sub: 'u1', email: 'a@example.com' })
   })
 
-  it('returns plain claims when no me backend is configured', async () => {
+  it('returns plain claims when the me backend is missing or has no base', async () => {
     expect(await getSessionUser(withToken('jwt'), {})).toEqual({ sub: 'u1', email: 'a@example.com' })
-    const { meBackend: _, ...unnamed } = config().tlv2proxy
-    expect(await getSessionUser(withToken('jwt'), { tlv2proxy: unnamed })).toEqual({ sub: 'u1', email: 'a@example.com' })
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('returns plain claims when the me backend is not declared', async () => {
-    const missing = { tlv2proxy: { ...config().tlv2proxy, meBackend: 'missing' } }
-    expect(await getSessionUser(withToken('jwt'), missing)).toEqual({ sub: 'u1', email: 'a@example.com' })
+    expect(await getSessionUser(withToken('jwt'), config(false, { meBackend: 'missing', mePath: '/query' }))).toEqual({ sub: 'u1', email: 'a@example.com' })
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })

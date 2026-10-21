@@ -5,14 +5,14 @@ describe('parseProxyRoute', () => {
   it('parses name and stripped path', () => {
     expect(parseProxyRoute('/proxy/stationEditor/query', '/proxy')).toEqual({ name: 'stationEditor', strippedPath: '/query' })
   })
-  it('defaults stripped path to "/" for a bare backend', () => {
-    expect(parseProxyRoute('/proxy/default', '/proxy')).toEqual({ name: 'default', strippedPath: '/' })
+  it('gives an empty stripped path for a bare backend', () => {
+    expect(parseProxyRoute('/proxy/default', '/proxy')).toEqual({ name: 'default', strippedPath: '' })
   })
   it('preserves the query string', () => {
     expect(parseProxyRoute('/proxy/default/query?limit=10', '/proxy')).toEqual({ name: 'default', strippedPath: '/query?limit=10' })
   })
   it('preserves a query on a bare backend', () => {
-    expect(parseProxyRoute('/proxy/default?x=1', '/proxy')).toEqual({ name: 'default', strippedPath: '/?x=1' })
+    expect(parseProxyRoute('/proxy/default?x=1', '/proxy')).toEqual({ name: 'default', strippedPath: '?x=1' })
   })
   it('returns null for the bare prefix', () => {
     expect(parseProxyRoute('/proxy', '/proxy')).toBeNull()

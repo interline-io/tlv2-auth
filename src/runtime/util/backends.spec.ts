@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveProxyBackends } from './backends'
+import { resolveMeEndpoint, resolveProxyBackends } from './backends'
 
 describe('resolveProxyBackends', () => {
   it('returns the configured backends when there is no legacy config', () => {
@@ -60,5 +60,20 @@ describe('resolveProxyBackends', () => {
 
   it('returns empty when nothing is configured', () => {
     expect(resolveProxyBackends({})).toEqual({})
+  })
+})
+
+describe('resolveMeEndpoint', () => {
+  it('reaches a legacy bridged default backend at its base plus mePath, under the legacy apikey', () => {
+    expect(resolveMeEndpoint({
+      tlv2proxy: { meBackend: 'default', mePath: '/query' },
+      tlv2: { graphqlApikey: 'legacy-key', proxyBase: { default: 'https://legacy.example.com' } }
+    })).toEqual({ backend: { base: 'https://legacy.example.com', apikey: 'legacy-key' }, url: 'https://legacy.example.com/query' })
+  })
+
+  it('gives nothing for a backend that is not declared or has no base', () => {
+    expect(resolveMeEndpoint({ tlv2proxy: { meBackend: 'missing', mePath: '/query', backends: { default: { base: 'https://api.example.com' } } } })).toBeUndefined()
+    expect(resolveMeEndpoint({ tlv2proxy: { meBackend: 'default', mePath: '/query', backends: { default: { base: '' } } } })).toBeUndefined()
+    expect(resolveMeEndpoint({})).toBeUndefined()
   })
 })
