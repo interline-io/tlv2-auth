@@ -10,7 +10,7 @@ const pinnedFetch = globalThis.fetch
 
 // Where proxyHandler sends a request, and what it sends.
 export interface ProxyForward {
-  // The URL to send it to (see buildProxyTarget).
+  // The upstream URL (see buildProxyTarget).
   target: string
   // The headers to set upstream: the credential headers the proxy's policy chose
   // (see buildProxyHeaders), and any a tlv2proxy:request hook added.
@@ -35,8 +35,8 @@ export async function proxyHandler (event: H3Event, forward: ProxyForward) {
     for (const name of CREDENTIAL_HEADERS) {
       Reflect.deleteProperty(reqHeaders, name)
     }
-    // h3 forwards content-length as the request had it; fetch sets a
-    // replacement body's own.
+    // h3 forwards the request's own content-length; fetch sets the length of
+    // a replacement body.
     if (forward.body !== undefined) {
       delete reqHeaders['content-length']
     }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseProxyRoute, buildProxyTarget, buildProxyHeaders, pathUnderBase, stripApikeyParam } from './proxy-route'
+import { parseProxyRoute, buildProxyTarget, buildProxyHeaders, stripApikeyParam } from './proxy-route'
 
 describe('parseProxyRoute', () => {
   it('parses name and stripped path', () => {
@@ -26,7 +26,7 @@ describe('parseProxyRoute', () => {
   })
 })
 
-describe('pathUnderBase', () => {
+describe('buildProxyTarget', () => {
   it('gives the path the backend receives, dot segments resolved', () => {
     const base = 'https://api.transit.land/api/v2'
     for (const [requested, received] of [
@@ -36,44 +36,48 @@ describe('pathUnderBase', () => {
       ['/../v2/query', '/query'],
       ['/query/', '/query/']
     ] as const) {
-      expect(pathUnderBase(base, buildProxyTarget(base, requested)!), requested).toBe(received)
+      expect(buildProxyTarget(base, requested)?.path, requested).toBe(received)
     }
+    expect(buildProxyTarget('https://api.example.com', '/x/../query')?.path).toBe('/query')
   })
 
-  it('works under a base with no path', () => {
-    const base = 'https://api.example.com'
-    expect(pathUnderBase(base, buildProxyTarget(base, '/x/../query')!)).toBe('/query')
+  it('treats a base with a trailing slash like one without', () => {
+    for (const requested of ['/query', '/x/../query', '/../admin', '/../v2/query', '/../../v2x/query']) {
+      expect(buildProxyTarget('https://api.example.com/api/v2/', requested), requested)
+        .toEqual(buildProxyTarget('https://api.example.com/api/v2', requested))
+    }
+    expect(buildProxyTarget('https://api.example.com/api/v2/', '/query'))
+      .toEqual({ target: 'https://api.example.com/api/v2/query', path: '/query' })
+    expect(buildProxyTarget('https://api.example.com/api/v2/', '/../admin')).toBeUndefined()
   })
-})
 
-describe('buildProxyTarget', () => {
   it('appends path to proxyBase with subpath', () => {
-    expect(buildProxyTarget('https://api.transit.land/api/v2', '/query'))
+    expect(buildProxyTarget('https://api.transit.land/api/v2', '/query')?.target)
       .toBe('https://api.transit.land/api/v2/query')
   })
 
   it('appends path to proxyBase at root', () => {
-    expect(buildProxyTarget('https://station-api.example.com', '/query'))
+    expect(buildProxyTarget('https://station-api.example.com', '/query')?.target)
       .toBe('https://station-api.example.com/query')
   })
 
   it('handles trailing slash on proxyBase', () => {
-    expect(buildProxyTarget('https://api.example.com/', '/query'))
+    expect(buildProxyTarget('https://api.example.com/', '/query')?.target)
       .toBe('https://api.example.com/query')
   })
 
   it('handles root path', () => {
-    expect(buildProxyTarget('https://api.example.com/v2', '/'))
+    expect(buildProxyTarget('https://api.example.com/v2', '/')?.target)
       .toBe('https://api.example.com/v2/')
   })
 
   it('handles nested request paths', () => {
-    expect(buildProxyTarget('https://api.example.com/v2', '/admin/feeds/123'))
+    expect(buildProxyTarget('https://api.example.com/v2', '/admin/feeds/123')?.target)
       .toBe('https://api.example.com/v2/admin/feeds/123')
   })
 
   it('handles query strings in path', () => {
-    expect(buildProxyTarget('https://api.example.com/v2', '/query?limit=10'))
+    expect(buildProxyTarget('https://api.example.com/v2', '/query?limit=10')?.target)
       .toBe('https://api.example.com/v2/query?limit=10')
   })
 
@@ -90,7 +94,7 @@ describe('buildProxyTarget', () => {
   })
 
   it('allows the base path itself', () => {
-    expect(buildProxyTarget('https://api.example.com/api/v2', '/../v2'))
+    expect(buildProxyTarget('https://api.example.com/api/v2', '/../v2')?.target)
       .toBe('https://api.example.com/api/v2')
   })
 
@@ -100,7 +104,7 @@ describe('buildProxyTarget', () => {
   })
 
   it('allows normal subpaths that stay within proxyBase', () => {
-    expect(buildProxyTarget('https://api.example.com/api/v2', '/feeds/../feeds/123'))
+    expect(buildProxyTarget('https://api.example.com/api/v2', '/feeds/../feeds/123')?.target)
       .toBe('https://api.example.com/api/v2/feeds/123')
   })
 
@@ -111,7 +115,7 @@ describe('buildProxyTarget', () => {
 
   it('is safe from scheme-relative SSRF with subpath proxyBase', () => {
     // When proxyBase has a subpath, the // is treated as part of the path, not a host
-    expect(buildProxyTarget('https://api.example.com/api/v2', '//attacker.com/data'))
+    expect(buildProxyTarget('https://api.example.com/api/v2', '//attacker.com/data')?.target)
       .toBe('https://api.example.com/api/v2//attacker.com/data')
   })
 

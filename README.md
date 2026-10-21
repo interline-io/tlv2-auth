@@ -6,7 +6,7 @@ Nuxt 4 module providing authentication and API proxying for Transitland v2 appli
 
 - Server-side Auth0 sessions (always bundled; gracefully disabled at runtime when credentials are absent)
 - Same-origin API proxy with per-backend credential policy (token-exclusive apikey injection, `requireToken` fail-closed) — the module mounts the route itself
-- A `tlv2proxy:request` hook for the app's own proxy policy: refusing requests, such as an anti-abuse gate on the shared apikey, and replacing request bodies
+- A `tlv2proxy:request` hook for the app's own proxy policy: refusing requests, such as an anti-abuse gate on the shared apikey, replacing request bodies, and adding headers to the upstream request
 - Transparent for app code: plain `fetch`/`$fetch` against proxy paths work on both client and SSR (in-process loopback; only the proxy talks to the upstream)
 - Session enrichment with roles from a GraphQL `me` endpoint
 - Composables: `useUser`, `useLogin`, `useLogout`, `useApiEndpoint`, `useProxySsrFetch`

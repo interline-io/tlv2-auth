@@ -36,37 +36,36 @@ export function stripApikeyParam (pathAndQuery: string): string {
   return rest ? `${pathAndQuery.slice(0, q)}?${rest}` : pathAndQuery.slice(0, q)
 }
 
-// Build the target URL from proxyBase and the stripped request path, or
-// undefined when the resolved path escapes the proxyBase origin (SSRF) or
-// pathname (path traversal).
-export function buildProxyTarget (proxyBase: string, requestPath: string): string | undefined {
+// Where a request goes upstream.
+export interface ProxyTarget {
+  // The upstream URL.
+  target: string
+  // Its path and query below the backend's base, such as '/query'.
+  path: string
+}
+
+// The base joined to the stripped request path, resolved once, dot segments
+// included. A trailing slash on the base is ignored.
+//
+// Undefined when the result escapes the base's origin (SSRF) or its path
+// (traversal), including into a sibling that shares the base's prefix: /api/v2x
+// is outside /api/v2.
+export function buildProxyTarget (proxyBase: string, requestPath: string): ProxyTarget | undefined {
   const proxyBaseUrl = new URL(proxyBase)
-  const proxyBasePathname = proxyBaseUrl.pathname === '/' ? '' : proxyBaseUrl.pathname
-  const newPath = proxyBasePathname + requestPath
-  const resolved = new URL(newPath, proxyBaseUrl.toString())
+  const baseRoot = proxyBaseUrl.pathname.replace(/\/+$/, '')
+  const resolved = new URL(baseRoot + requestPath, proxyBaseUrl)
   if (resolved.origin !== proxyBaseUrl.origin) {
     return undefined
   }
-  // Under the base path itself, not a sibling that shares its prefix:
-  // /api/v2x is outside /api/v2.
-  const baseRoot = proxyBasePathname.replace(/\/$/, '')
   if (baseRoot && resolved.pathname !== baseRoot && !resolved.pathname.startsWith(`${baseRoot}/`)) {
     return undefined
   }
-  return resolved.toString()
-}
-
-// The path and query of a buildProxyTarget target below the base's own path:
-// what a request names after the backend segment, as the backend receives it.
-export function pathUnderBase (proxyBase: string, target: string): string {
-  const basePathname = new URL(proxyBase).pathname
-  const url = new URL(target)
-  return url.pathname.slice(basePathname === '/' ? 0 : basePathname.length) + url.search
+  return { target: resolved.toString(), path: resolved.pathname.slice(baseRoot.length) + resolved.search }
 }
 
 // The headers that carry credentials, lowercase. Only the proxy's policy sets
 // them upstream; a caller's copies are stripped.
-export const CREDENTIAL_HEADERS = ['authorization', 'apikey', 'cookie', 'proxy-authorization']
+export const CREDENTIAL_HEADERS: readonly string[] = ['authorization', 'apikey', 'cookie', 'proxy-authorization']
 
 // Build auth headers. A valid token is exclusive (Bearer only) unless
 // apikeyWithToken; otherwise a token-less request gets an apikey — a
