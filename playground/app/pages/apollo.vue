@@ -37,8 +37,8 @@
       <p style="color: #666; font-size: 0.9rem;">
         Fired in the browser on demand (<code>network-only</code>, never SSR), through the
         same-origin proxy (<strong>{{ backend }}</strong> backend) with browser cookies.
-        <strong>default</strong> injects the fallback apikey; <strong>stationEditor</strong> is
-        strict and errors without a valid token.
+        <strong>default</strong> sends the playground's key for anonymous callers;
+        <strong>stationEditor</strong> sets requireToken and errors without a valid token.
       </p>
       <div style="margin-top: 0.5rem;">
         <button :disabled="clientLoading" @click="runClientQuery">

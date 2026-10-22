@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createApp, eventHandler, toWebHandler } from 'h3'
+import { createApp, eventHandler, setResponseHeader, toWebHandler } from 'h3'
+import type { H3Event } from 'h3'
 
 // An upstream body whose first chunk is available at once and whose remainder
 // waits until release() is called, so a test can tell streaming from buffering.
@@ -21,7 +22,10 @@ function heldStream () {
 }
 
 // proxy.ts pins globalThis.fetch at module load, so stub it before importing.
-async function makeHandler (upstream: Response, forward: { headers?: Record<string, string>, body?: string } = {}) {
+async function makeHandler (
+  upstream: Response,
+  forward: { headers?: Record<string, string>, body?: string, onResponse?: (event: H3Event, response: Response) => void } = {}
+) {
   const fetchMock = vi.fn().mockResolvedValue(upstream)
   vi.stubGlobal('fetch', fetchMock)
   vi.resetModules()
@@ -29,8 +33,9 @@ async function makeHandler (upstream: Response, forward: { headers?: Record<stri
   const app = createApp()
   app.use(eventHandler(event => proxyHandler(event, {
     target: `https://upstream.example.com/api/v2${event.path}`,
-    headers: forward.headers ?? { apikey: 'backend-key' },
-    body: forward.body
+    headers: forward.headers ?? { apikey: 'app-key' },
+    body: forward.body,
+    onResponse: forward.onResponse && (response => forward.onResponse!(event, response))
   })))
   return { handler: toWebHandler(app), fetchMock }
 }
@@ -95,11 +100,10 @@ describe('proxyHandler', () => {
       headers: { cookie: 'appSession=secret', authorization: 'Bearer forged', apikey: 'caller-key' }
     }))
     const [target, init] = fetchMock.mock.calls[0]!
-    // The route picks between a caller's apikey and the backend's; this sends
-    // its choice.
+    // The route picks the credentials; this sends its choice.
     expect(target).toBe('https://upstream.example.com/api/v2/query?limit=1')
     const sent = new Headers(init.headers)
-    expect(sent.get('apikey')).toBe('backend-key')
+    expect(sent.get('apikey')).toBe('app-key')
     expect(sent.get('cookie') || '').toBe('')
     expect(sent.get('authorization')).toBeNull()
 
@@ -111,11 +115,26 @@ describe('proxyHandler', () => {
   })
 
   it('sends a header it is given in place of the caller\'s copy', async () => {
-    const { handler, fetchMock } = await makeHandler(new Response('ok'), { headers: { 'apikey': 'backend-key', 'x-vetted': 'signed' } })
+    const { handler, fetchMock } = await makeHandler(new Response('ok'), { headers: { 'apikey': 'app-key', 'x-vetted': 'signed' } })
     await handler(new Request('https://www.example.com/query', { headers: { 'X-Vetted': 'forged' } }))
     const sent = new Headers(fetchMock.mock.calls[0]![1].headers)
     expect(sent.get('x-vetted')).toBe('signed')
-    expect(sent.get('apikey')).toBe('backend-key')
+    expect(sent.get('apikey')).toBe('app-key')
+  })
+
+  it('calls onResponse with the upstream response before the body, so a header it sets reaches the client', async () => {
+    const seen: number[] = []
+    const { handler } = await makeHandler(new Response('missing', { status: 404 }), {
+      onResponse: (event, response) => {
+        seen.push(response.status)
+        setResponseHeader(event, 'x-upstream-status', String(response.status))
+      }
+    })
+    const res = await handler(new Request('https://www.example.com/tiles/routes/tiles/0/0/0.pbf'))
+    expect(seen).toEqual([404])
+    expect(res.status).toBe(404)
+    expect(res.headers.get('x-upstream-status')).toBe('404')
+    expect(await res.text()).toBe('missing')
   })
 
   it('sends the request\'s own body when given none to replace it', async () => {

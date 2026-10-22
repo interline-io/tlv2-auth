@@ -18,14 +18,17 @@ export default defineNuxtConfig({
       sessionSecret: '',
       audience: '',
     },
-    // Proxy backends — mounted at /proxy/{name} (proxyEnabled above). Set
-    // values via NUXT_TLV2PROXY_BACKENDS_<NAME>_<FIELD> (e.g. _DEFAULT_APIKEY).
+    // Proxy backends, mounted at /proxy/{name} (proxyEnabled below). Set a base
+    // with NUXT_TLV2PROXY_BACKENDS_<NAME>_BASE.
     tlv2proxy: {
       backends: {
-        default: { base: 'https://api.transit.land/api/v2', apikey: '' },
+        default: { base: 'https://api.transit.land/api/v2' },
         stationEditor: { base: 'https://saas.transit.land/api/v2', requireToken: true },
       },
     },
+    // The playground's own key, which server/plugins/proxy-apikey.ts sends for
+    // anonymous callers on the default backend. Set with NUXT_PROXY_APIKEY.
+    proxyApikey: '',
     public: {
       tlv2: {
         loginGate: true,

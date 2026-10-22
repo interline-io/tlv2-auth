@@ -13,8 +13,8 @@ function withToken (token: string | Error) {
 
 const me = { id: 7, name: 'A', email: 'a@example.com', roles: ['tl_user'], external_data: {} }
 
-function config (apikeyWithToken?: boolean) {
-  return { tlv2proxy: { backends: { default: { base: 'https://api.example.com', apikey: 'shared-key', apikeyWithToken } } } }
+function config () {
+  return { tlv2proxy: { backends: { default: { base: 'https://api.example.com' } } } }
 }
 
 describe('getSessionUser', () => {
@@ -34,7 +34,7 @@ describe('getSessionUser', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('flags a degraded session and never queries me under the shared apikey', async () => {
+  it('flags a degraded session and never queries me', async () => {
     const user = await getSessionUser(withToken(new Error('refresh failed')), config())
     expect(user).toEqual({ sub: 'u1', email: 'a@example.com', tlv2_degraded: true })
     expect(fetchMock).not.toHaveBeenCalled()
@@ -47,13 +47,6 @@ describe('getSessionUser', () => {
     expect(url).toBe('https://api.example.com/query')
     expect(init.headers.authorization).toBe('Bearer jwt')
     expect(init.headers.apikey).toBeUndefined()
-  })
-
-  it('sends the apikey alongside the token when the backend opts in', async () => {
-    await getSessionUser(withToken('jwt'), config(true))
-    const [, init] = fetchMock.mock.calls[0]!
-    expect(init.headers.authorization).toBe('Bearer jwt')
-    expect(init.headers.apikey).toBe('shared-key')
   })
 
   it('falls back to plain claims when me fails', async () => {

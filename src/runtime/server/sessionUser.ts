@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { enrichUserClaims } from '../util/enrich'
-import { resolveProxyBackends } from '../util/backends'
+import { proxyBackends, type ProxyConfig } from '../util/backends'
 import { buildProxyHeaders } from '../util/proxy-route'
 import { useAuth0Session } from './useSession'
 import { traceEnabled, trace, traceUserClaims } from '../util/log'
@@ -38,7 +38,7 @@ async function fetchMeData (proxyBase: string, headers: Record<string, string>) 
       }
       console.warn(
         `[tlv2-auth] session enrich: GraphQL me query returned ${response.status} — check iss/aud`,
-        { url: `${proxyBase}/query`, hasApikey: !!headers.apikey, jwt: jwtInfo }
+        { url: `${proxyBase}/query`, jwt: jwtInfo }
       )
     }
     return null
@@ -55,7 +55,7 @@ async function fetchMeData (proxyBase: string, headers: Record<string, string>) 
 // `tlv2_degraded` when there's no usable token.
 export async function getSessionUser (
   event: H3Event,
-  config: Parameters<typeof resolveProxyBackends>[0]
+  config: ProxyConfig
 ): Promise<Record<string, any> | null> {
   const auth = await useAuth0Session(event)
   if (traceEnabled) {
@@ -66,13 +66,13 @@ export async function getSessionUser (
   }
   traceUserClaims('getSessionUser — user claims:', auth.user)
 
-  // Degraded (logged in, no token): skip enrichment and flag it — a `me` fetched
-  // with only the apikey would stamp the shared key's identity onto this user.
+  // Degraded (logged in, no token): skip enrichment and mark the session
+  // degraded, since `me` needs the user's token.
   if (!auth.accessToken) {
     return { ...auth.user, tlv2_degraded: true }
   }
 
-  const identity = resolveProxyBackends(config).default
+  const identity = proxyBackends(config).default
   if (!identity?.base) {
     if (traceEnabled) {
       trace('getSessionUser — no default backend configured, returning user claims without enrichment')
@@ -80,10 +80,8 @@ export async function getSessionUser (
     return auth.user
   }
 
-  // Token-exclusive, via the same helper the proxy uses: authenticate `me` as
-  // the user; only attach the shared apikey when the backend opts in with
-  // apikeyWithToken, so roles never resolve under the shared key's identity.
-  const headers = buildProxyHeaders(identity.apikey, auth.accessToken, undefined, identity.apikeyWithToken)
+  // The user's token alone, so roles resolve for this user and nobody else.
+  const headers = buildProxyHeaders(auth.accessToken)
 
   const meData = await fetchMeData(identity.base, headers)
   if (traceEnabled) {

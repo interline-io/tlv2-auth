@@ -20,8 +20,9 @@
       <h2>Client fetch</h2>
       <p style="color: #666; font-size: 0.9rem;">
         Sends a GraphQL query through the proxy with plain <code>fetch()</code>.
-        <strong>default</strong> injects a fallback apikey (works logged-out);
-        <strong>stationEditor</strong> is strict — it returns 401 without a valid token.
+        <strong>default</strong> sends the playground's key for anonymous callers (works
+        logged-out); <strong>stationEditor</strong> sets requireToken, so it returns 401 without a
+        valid token.
       </p>
       <div style="margin-top: 0.5rem;">
         <label>

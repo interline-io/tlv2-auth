@@ -1,34 +1,18 @@
-// Per-backend proxy config, keyed by name in tlv2proxy.backends.
+// A proxy backend, keyed by name in tlv2proxy.backends.
 export interface ProxyBackendConfig {
+  // The upstream base URL.
   base: string
-  apikey?: string
-  apikeyWithToken?: boolean
+  // 401 a request without a signed-in user's token, before any hook runs.
   requireToken?: boolean
 }
 
-interface ProxyConfig {
+// The part of runtime config that holds the proxy backends.
+export interface ProxyConfig {
   tlv2proxy?: { backends?: Record<string, ProxyBackendConfig> }
-  // Legacy (migration): tlv2.proxyBase.default (endpoint) + tlv2.graphqlApikey.
-  tlv2?: { graphqlApikey?: string, proxyBase?: Record<string, string> }
 }
 
-// Resolve the configured proxy backends. TEMPORARY migration bridge: maps legacy
-// tlv2.proxyBase.<name> into any backend NOT declared in tlv2proxy.backends, and
-// injects tlv2.graphqlApikey on each — reproducing main, which attached the single
-// shared key to every backend it proxied. A declared backend is never merged into,
-// so migrating one to fail-closed just means declaring it (keyless) in
-// tlv2proxy.backends. Gate on this resolved view, not raw tlv2proxy.backends.
-// Drop once consumers migrate.
-export function resolveProxyBackends (config: ProxyConfig): Record<string, ProxyBackendConfig> {
-  const backends = { ...(config.tlv2proxy?.backends || {}) }
-  const legacyApikey = config.tlv2?.graphqlApikey
-  for (const [name, base] of Object.entries(config.tlv2?.proxyBase || {})) {
-    if (base && !backends[name]) {
-      backends[name] = {
-        base,
-        ...(legacyApikey ? { apikey: legacyApikey } : {})
-      }
-    }
-  }
-  return backends
+// The configured backends by name, typed for lookup by any name rather than by
+// the app's own declaration, which names only its backends.
+export function proxyBackends (config: ProxyConfig): Record<string, ProxyBackendConfig> {
+  return config.tlv2proxy?.backends ?? {}
 }

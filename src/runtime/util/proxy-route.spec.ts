@@ -5,14 +5,14 @@ describe('parseProxyRoute', () => {
   it('parses name and stripped path', () => {
     expect(parseProxyRoute('/proxy/stationEditor/query', '/proxy')).toEqual({ name: 'stationEditor', strippedPath: '/query' })
   })
-  it('defaults stripped path to "/" for a bare backend', () => {
-    expect(parseProxyRoute('/proxy/default', '/proxy')).toEqual({ name: 'default', strippedPath: '/' })
+  it('gives an empty stripped path for a bare backend', () => {
+    expect(parseProxyRoute('/proxy/default', '/proxy')).toEqual({ name: 'default', strippedPath: '' })
   })
   it('preserves the query string', () => {
     expect(parseProxyRoute('/proxy/default/query?limit=10', '/proxy')).toEqual({ name: 'default', strippedPath: '/query?limit=10' })
   })
   it('preserves a query on a bare backend', () => {
-    expect(parseProxyRoute('/proxy/default?x=1', '/proxy')).toEqual({ name: 'default', strippedPath: '/?x=1' })
+    expect(parseProxyRoute('/proxy/default?x=1', '/proxy')).toEqual({ name: 'default', strippedPath: '?x=1' })
   })
   it('returns null for the bare prefix', () => {
     expect(parseProxyRoute('/proxy', '/proxy')).toBeNull()
@@ -64,6 +64,20 @@ describe('buildProxyTarget', () => {
   it('handles trailing slash on proxyBase', () => {
     expect(buildProxyTarget('https://api.example.com/', '/query')?.target)
       .toBe('https://api.example.com/query')
+  })
+
+  it('sends a bare route to the base itself, without its trailing slash or query', () => {
+    for (const [base, requested, target, path] of [
+      ['https://api.example.com/api/v2/query', '', 'https://api.example.com/api/v2/query', ''],
+      ['https://api.example.com/api/v2/query', '?x=1', 'https://api.example.com/api/v2/query?x=1', '?x=1'],
+      ['https://api.example.com/api/v2/query/', '', 'https://api.example.com/api/v2/query', ''],
+      ['https://api.example.com/api/v2?fixed=1', '', 'https://api.example.com/api/v2', ''],
+      ['https://api.example.com', '', 'https://api.example.com/', '/'],
+      ['https://api.example.com', '?x=1', 'https://api.example.com/?x=1', '/?x=1'],
+      ['https://api.example.com/?fixed=1', '', 'https://api.example.com/', '/']
+    ] as const) {
+      expect(buildProxyTarget(base, requested), `${base} ${requested}`).toEqual({ target, path })
+    }
   })
 
   it('handles root path', () => {
@@ -126,47 +140,18 @@ describe('buildProxyTarget', () => {
 })
 
 describe('buildProxyHeaders', () => {
-  it('includes graphql apikey', () => {
-    const headers = buildProxyHeaders('my-api-key')
-    expect(headers).toEqual({ apikey: 'my-api-key' })
+  it('sends the token alone, over a key the caller sent', () => {
+    expect(buildProxyHeaders('jwt-token', 'caller-key')).toEqual({ authorization: 'Bearer jwt-token' })
   })
 
-  it('sends only the token, dropping the backend apikey, when a token is present', () => {
-    const headers = buildProxyHeaders('my-api-key', 'jwt-token')
-    expect(headers).toEqual({ authorization: 'Bearer jwt-token' })
+  it('sends the caller\'s key without a token', () => {
+    expect(buildProxyHeaders('', 'caller-key')).toEqual({ apikey: 'caller-key' })
+    expect(buildProxyHeaders(undefined, 'caller-key')).toEqual({ apikey: 'caller-key' })
   })
 
-  it('omits authorization when accessToken is empty', () => {
-    const headers = buildProxyHeaders('my-api-key', '')
-    expect(headers).toEqual({ apikey: 'my-api-key' })
-  })
-
-  it('prefers requestApikey over the backend key', () => {
-    const headers = buildProxyHeaders('server-key', undefined, 'user-key')
-    expect(headers).toEqual({ apikey: 'user-key' })
-  })
-
-  it('falls back to the backend key when no requestApikey', () => {
-    const headers = buildProxyHeaders('server-key', undefined, '')
-    expect(headers).toEqual({ apikey: 'server-key' })
-  })
-
-  it('token wins over every apikey source when all are provided', () => {
-    const headers = buildProxyHeaders('server-key', 'jwt-token', 'user-key')
-    expect(headers).toEqual({ authorization: 'Bearer jwt-token' })
-  })
-
-  it('sends both when apikeyWithToken is set', () => {
-    const headers = buildProxyHeaders('my-api-key', 'jwt-token', undefined, true)
-    expect(headers).toEqual({
-      apikey: 'my-api-key',
-      authorization: 'Bearer jwt-token'
-    })
-  })
-
-  it('omits apikey header when both keys are empty', () => {
-    const headers = buildProxyHeaders('', undefined, '')
-    expect(headers).toEqual({})
+  it('sends nothing without either', () => {
+    expect(buildProxyHeaders()).toEqual({})
+    expect(buildProxyHeaders('', '')).toEqual({})
   })
 })
 
