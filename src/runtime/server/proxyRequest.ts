@@ -19,7 +19,8 @@ export interface ProxyRequest {
   // The backend's name, the path segment after the proxy prefix.
   readonly backend: string
   // The path and query after the backend segment, such as '/query', exactly as
-  // forwarded: dot segments resolved, with no caller-supplied apikey.
+  // forwarded: dot segments resolved, with no caller-supplied apikey. Empty for
+  // a bare /{prefix}/{name}, or '/' when the backend's base is a host root.
   readonly path: string
   // True when the request goes upstream under the backend's own apikey, the
   // shared identity an app may want to gate.

@@ -66,6 +66,20 @@ describe('buildProxyTarget', () => {
       .toBe('https://api.example.com/query')
   })
 
+  it('sends a bare route to the base itself, without its trailing slash or query', () => {
+    for (const [base, requested, target, path] of [
+      ['https://api.example.com/api/v2/query', '', 'https://api.example.com/api/v2/query', ''],
+      ['https://api.example.com/api/v2/query', '?x=1', 'https://api.example.com/api/v2/query?x=1', '?x=1'],
+      ['https://api.example.com/api/v2/query/', '', 'https://api.example.com/api/v2/query', ''],
+      ['https://api.example.com/api/v2?fixed=1', '', 'https://api.example.com/api/v2', ''],
+      ['https://api.example.com', '', 'https://api.example.com/', '/'],
+      ['https://api.example.com', '?x=1', 'https://api.example.com/?x=1', '/?x=1'],
+      ['https://api.example.com/?fixed=1', '', 'https://api.example.com/', '/']
+    ] as const) {
+      expect(buildProxyTarget(base, requested), `${base} ${requested}`).toEqual({ target, path })
+    }
+  })
+
   it('handles root path', () => {
     expect(buildProxyTarget('https://api.example.com/v2', '/')?.target)
       .toBe('https://api.example.com/v2/')

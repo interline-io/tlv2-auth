@@ -1,8 +1,8 @@
 // Pure functions for proxy request routing/building — no framework dependencies.
 
 // Parse `/{prefix}/{name}/rest?query` → { name, strippedPath: '/rest?query' }.
-// A bare `/{prefix}/{name}` gives an empty strippedPath, which reaches the
-// backend's base exactly. Returns null when the path isn't under the prefix
+// A bare `/{prefix}/{name}` gives an empty strippedPath, so the request goes to
+// the backend's base itself. Returns null when the path isn't under the prefix
 // with a backend segment.
 export function parseProxyRoute (path: string, prefix: string): { name: string, strippedPath: string } | null {
   if (!path.startsWith(`${prefix}/`)) {
@@ -42,12 +42,14 @@ export function stripApikeyParam (pathAndQuery: string): string {
 export interface ProxyTarget {
   // The upstream URL.
   target: string
-  // Its path and query below the backend's base, such as '/query'.
+  // Its path and query below the backend's base, such as '/query'. Empty for the
+  // base itself, or '/' on a base at the host root, where a URL's path can't be
+  // empty.
   path: string
 }
 
 // The base joined to the stripped request path, resolved once, dot segments
-// included. A trailing slash on the base is ignored.
+// included. A trailing slash on the base is ignored, and so is any query on it.
 //
 // Undefined when the result escapes the base's origin (SSRF) or its path
 // (traversal), including into a sibling that shares the base's prefix: /api/v2x
@@ -55,7 +57,10 @@ export interface ProxyTarget {
 export function buildProxyTarget (proxyBase: string, requestPath: string): ProxyTarget | undefined {
   const proxyBaseUrl = new URL(proxyBase)
   const baseRoot = proxyBaseUrl.pathname.replace(/\/+$/, '')
-  const resolved = new URL(baseRoot + requestPath, proxyBaseUrl)
+  // Always path-absolute: on a host-root base, an empty path or a query alone
+  // would otherwise resolve against the base itself and keep the base's query.
+  const reference = baseRoot + requestPath
+  const resolved = new URL(reference.startsWith('/') ? reference : `/${reference}`, proxyBaseUrl)
   if (resolved.origin !== proxyBaseUrl.origin) {
     return undefined
   }

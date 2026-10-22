@@ -32,27 +32,3 @@ export function resolveProxyBackends (config: ProxyConfig): Record<string, Proxy
   }
   return backends
 }
-
-// The proxy config with the session's `me` lookup settings beside the backends.
-export interface SessionProxyConfig extends ProxyConfig {
-  tlv2proxy?: { meBackend?: string, mePath?: string, backends?: Record<string, ProxyBackendConfig> }
-}
-
-// Where the session's `me` lookup goes.
-export interface MeEndpoint {
-  // The backend tlv2proxy.meBackend names; the lookup follows its credential rules.
-  backend: ProxyBackendConfig
-  // That backend's base plus tlv2proxy.mePath.
-  url: string
-}
-
-// The session's `me` lookup target, or undefined when the backend
-// tlv2proxy.meBackend names is not declared or has no base.
-export function resolveMeEndpoint (config: SessionProxyConfig): MeEndpoint | undefined {
-  const name = config.tlv2proxy?.meBackend
-  const backend = name ? resolveProxyBackends(config)[name] : undefined
-  if (!backend?.base) {
-    return undefined
-  }
-  return { backend, url: backend.base + (config.tlv2proxy?.mePath ?? '') }
-}

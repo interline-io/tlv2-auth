@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { enrichUserClaims } from '../util/enrich'
-import { resolveMeEndpoint, type SessionProxyConfig } from '../util/backends'
+import { resolveProxyBackends } from '../util/backends'
 import { buildProxyHeaders } from '../util/proxy-route'
 import { useAuth0Session } from './useSession'
 import { traceEnabled, trace, traceUserClaims } from '../util/log'
@@ -12,10 +12,10 @@ import { traceEnabled, trace, traceUserClaims } from '../util/log'
 // /auth/session response; on timeout the query returns null (enrichment skipped).
 const ENRICH_TIMEOUT_MS = 1000
 
-// Fetch the GraphQL `me` record from the GraphQL endpoint. Returns null on
-// unreachable/timeout/error — enrichment is best-effort.
-async function fetchMeData (endpoint: string, headers: Record<string, string>) {
-  const response = await fetch(endpoint, {
+// Fetch the GraphQL `me` record. Returns null on unreachable/timeout/error —
+// enrichment is best-effort.
+async function fetchMeData (proxyBase: string, headers: Record<string, string>) {
+  const response = await fetch(`${proxyBase}/query`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: '{ me { id name email roles external_data } }' }),
@@ -38,7 +38,7 @@ async function fetchMeData (endpoint: string, headers: Record<string, string>) {
       }
       console.warn(
         `[tlv2-auth] session enrich: GraphQL me query returned ${response.status} — check iss/aud`,
-        { url: endpoint, hasApikey: !!headers.apikey, jwt: jwtInfo }
+        { url: `${proxyBase}/query`, hasApikey: !!headers.apikey, jwt: jwtInfo }
       )
     }
     return null
@@ -50,12 +50,12 @@ async function fetchMeData (endpoint: string, headers: Record<string, string>) {
   return json?.data?.me ?? null
 }
 
-// Resolve the current user's claims, enriched with the GraphQL `me` record (see
-// resolveMeEndpoint). Returns null when anonymous, or the auth0 claims marked
+// Resolve the current user's claims, enriched with the GraphQL `me` record from
+// the `default` backend. Returns null when anonymous, or the auth0 claims marked
 // `tlv2_degraded` when there's no usable token.
 export async function getSessionUser (
   event: H3Event,
-  config: SessionProxyConfig
+  config: Parameters<typeof resolveProxyBackends>[0]
 ): Promise<Record<string, any> | null> {
   const auth = await useAuth0Session(event)
   if (traceEnabled) {
@@ -72,10 +72,10 @@ export async function getSessionUser (
     return { ...auth.user, tlv2_degraded: true }
   }
 
-  const endpoint = resolveMeEndpoint(config)
-  if (!endpoint) {
+  const identity = resolveProxyBackends(config).default
+  if (!identity?.base) {
     if (traceEnabled) {
-      trace('getSessionUser — no me backend configured, returning user claims without enrichment')
+      trace('getSessionUser — no default backend configured, returning user claims without enrichment')
     }
     return auth.user
   }
@@ -83,9 +83,9 @@ export async function getSessionUser (
   // Token-exclusive, via the same helper the proxy uses: authenticate `me` as
   // the user; only attach the shared apikey when the backend opts in with
   // apikeyWithToken, so roles never resolve under the shared key's identity.
-  const headers = buildProxyHeaders(endpoint.backend.apikey, auth.accessToken, undefined, endpoint.backend.apikeyWithToken)
+  const headers = buildProxyHeaders(identity.apikey, auth.accessToken, undefined, identity.apikeyWithToken)
 
-  const meData = await fetchMeData(endpoint.url, headers)
+  const meData = await fetchMeData(identity.base, headers)
   if (traceEnabled) {
     trace('getSessionUser — fetchMeData result:', meData)
   }
