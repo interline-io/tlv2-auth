@@ -4,32 +4,32 @@ import { useNitroApp } from 'nitropack/runtime'
 import { useRuntimeConfig } from '#imports'
 import { proxyHandler } from '../../util/proxy'
 import { CREDENTIAL_HEADERS, buildProxyHeaders, buildProxyTarget, parseProxyRoute, stripApikeyParam } from '../../util/proxy-route'
-import { resolveProxyBackends } from '../../util/backends'
+import type { ProxyBackendConfig } from '../../util/backends'
 import { DEFAULT_PROXY_PREFIX } from '../../util/defaults'
 import { traceEnabled, trace } from '../../util/log'
 import { useAuth0Session } from '../useSession'
 import type { ProxyRefusal, ProxyRequest } from '../proxyRequest'
 
-// Dispatches a proxy request to a configured backend (tlv2proxy.backends),
-// applying that backend's auth policy (token-exclusive apikey + requireToken),
-// then the app's tlv2proxy:request hooks.
+// Forwards a proxy request to a configured backend (tlv2proxy.backends) under
+// the caller's own credential, after the app's tlv2proxy:request hooks.
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
   const prefix = config.public?.tlv2proxy?.prefix || DEFAULT_PROXY_PREFIX
   const route = parseProxyRoute(event.path || '', prefix)
-  const backend = route ? resolveProxyBackends(config)[route.name] : undefined
+  // Widened from the app's own declaration, which names only its backends.
+  const backends: Record<string, ProxyBackendConfig> = config.tlv2proxy?.backends ?? {}
+  const backend = route ? backends[route.name] : undefined
   if (!route || !backend?.base) {
     return refuse(event, { statusCode: 404, statusMessage: 'Not Found', message: '[tlv2-proxy] Unknown proxy backend' })
   }
 
   const auth = await useAuth0Session(event)
 
-  // Fail closed without a usable token so a request never borrows the shared
-  // apikey identity: a requireToken backend, a logged-in-but-degraded session, or
-  // an app-wide requireLogin all 401. Genuinely anonymous callers get the apikey
-  // fallback only when the app permits it (requireLogin off, backend not requireToken).
+  // A degraded session (logged in, no usable token) 401s here, before any hook
+  // can send an app's key, so a known user re-authenticates rather than going out
+  // under a shared identity. So does an anonymous caller of an app that requires login.
   const requireLogin = config.public?.tlv2?.requireLogin
-  if (!auth.accessToken && (backend.requireToken || auth.loggedIn || requireLogin)) {
+  if (!auth.accessToken && (auth.loggedIn || requireLogin)) {
     return refuse(event, {
       statusCode: 401,
       statusMessage: 'Unauthorized',
@@ -41,10 +41,10 @@ export default defineEventHandler(async (event) => {
 
   const query = getQuery(event)
   const requestApikey = (query.apikey ? query.apikey.toString() : '') || event.headers.get('apikey') || ''
-  const headers = buildProxyHeaders(backend.apikey, auth.accessToken, requestApikey, backend.apikeyWithToken)
+  const headers = buildProxyHeaders(auth.accessToken, requestApikey)
 
   // Hooks judge the path the backend receives: dot segments resolved, and the
-  // caller's apikey removed, since `headers` carries it when policy allows.
+  // caller's apikey removed, since `headers` carries the key.
   const requestPath = stripApikeyParam(route.strippedPath)
   const upstream = buildProxyTarget(backend.base, requestPath)
   if (!upstream) {
@@ -58,7 +58,7 @@ export default defineEventHandler(async (event) => {
     event,
     backend: route.name,
     path: upstream.path,
-    sharedApikey: !!backend.apikey && headers.apikey === backend.apikey,
+    credential: credentialOf(headers),
     headers: {},
     get refusal () {
       return refusal
@@ -90,12 +90,27 @@ export default defineEventHandler(async (event) => {
     return hookBug(event, `set a body on a ${event.method} request`)
   }
 
+  // A key the caller sent goes upstream in place of the app's.
+  if (request.apikey && !headers.apikey) {
+    headers.apikey = request.apikey
+  }
   return proxyHandler(event, { target: upstream.target, headers: { ...request.headers, ...headers }, body: request.body })
 })
 
-// Headers only the proxy sets upstream: the credentials its policy chooses, and
-// the framing fetch computes for the body it sends.
+// Headers only the proxy sets upstream: the credentials, and the framing fetch
+// computes for the body it sends.
 const PROXY_HEADERS: readonly string[] = [...CREDENTIAL_HEADERS, 'content-length', 'transfer-encoding', 'host']
+
+// Which credential the caller's own headers carry.
+function credentialOf (headers: Record<string, string>): ProxyRequest['credential'] {
+  if (headers.authorization) {
+    return 'token'
+  }
+  if (headers.apikey) {
+    return 'apikey'
+  }
+  return 'none'
+}
 
 // Answers a refusal as JSON whatever the request accepts. A proxy URL is never a
 // page, and a thrown error would render Nuxt's HTML error page for a navigation,

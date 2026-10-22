@@ -5,13 +5,13 @@ Nuxt 4 module providing authentication and API proxying for Transitland v2 appli
 ## Features
 
 - Server-side Auth0 sessions (always bundled; gracefully disabled at runtime when credentials are absent)
-- Same-origin API proxy with per-backend credential policy (token-exclusive apikey injection, `requireToken` fail-closed) — the module mounts the route itself
-- A `tlv2proxy:request` hook for the app's own proxy policy: refusing requests, such as an anti-abuse gate on the shared apikey, replacing request bodies, and adding headers to the upstream request
+- Same-origin API proxy that sends the signed-in user's token server-side — the module mounts the route itself
+- A `tlv2proxy:request` hook for the app's own proxy policy: attaching the app's own apikey, refusing requests, such as an anti-abuse gate on that key, replacing request bodies, and adding headers to the upstream request
 - Transparent for app code: plain `fetch`/`$fetch` against proxy paths work on both client and SSR (in-process loopback; only the proxy talks to the upstream)
 - Session enrichment with roles from a GraphQL `me` endpoint
 - Composables: `useUser`, `useLogin`, `useLogout`, `useApiEndpoint`, `useProxySsrFetch`
 
-See [PROXY.md](PROXY.md) for the full proxy model — credential policy, security model, and client/SSR usage.
+See [PROXY.md](PROXY.md) for the full proxy model — credentials, the hook, security model, and client/SSR usage.
 
 ## Install
 
@@ -39,11 +39,10 @@ export default defineNuxtConfig({
       audience: '',
     },
     // Proxy backends — the module mounts each at /{proxyPrefix}/{name} and
-    // injects credentials server-side. Set secrets via env
-    // (NUXT_TLV2PROXY_BACKENDS_DEFAULT_APIKEY). See PROXY.md.
+    // sends the user's token server-side. See PROXY.md.
     tlv2proxy: {
       backends: {
-        default: { base: 'https://api.transit.land/api/v2', apikey: '' },
+        default: { base: 'https://api.transit.land/api/v2' },
       },
     },
     public: {
@@ -76,11 +75,11 @@ modules: [['@interline-io/tlv2-auth', { autoAppBaseUrl: true }]]
 | `requireLogin` | `boolean` | `false` | App-wide login gate: redirects unauthenticated users to Auth0 login (client-side) and fail-closes the proxy (anonymous requests 401 on every backend) |
 | `loginGate` | `boolean` | `false` | Show login UI gate |
 | `authPrefix` | `string` | `'/auth'` | URL prefix for auth routes (login, logout, session) |
-| `proxyEnabled` | `boolean` | `false` | Mount the API proxy. Off by default — it injects server-side credentials, so it must be explicitly opted into |
+| `proxyEnabled` | `boolean` | `false` | Mount the API proxy. Off by default — it sends server-side credentials, so an app has to opt in |
 | `proxyPrefix` | `string` | `'/proxy'` | URL prefix the module mounts the proxy under, and that `useApiEndpoint` builds requests against |
 | `autoAppBaseUrl` | `boolean` | `false` | Derive auth0 `appBaseUrl` from request `Host` header (see below) |
 
-`requireLogin` is the app-wide login gate: it redirects unauthenticated users client-side **and** fail-closes the proxy server-side (anonymous requests 401 on every backend). To fail-close only a specific privileged backend, use its per-backend `requireToken` instead (see [PROXY.md](PROXY.md)).
+`requireLogin` is the app-wide login gate: it redirects unauthenticated users client-side **and** fail-closes the proxy server-side (anonymous requests 401 on every backend).
 
 ### `autoAppBaseUrl`
 
@@ -94,7 +93,7 @@ The module includes a synchronous Nitro plugin that works around a race conditio
 
 ## API proxy
 
-Set `proxyEnabled: true` to mount a same-origin proxy at `{proxyPrefix}` (default `/proxy`); it injects server-side credentials so the browser never handles an apikey and never makes a cross-origin call. Declare backends in `runtimeConfig.tlv2proxy.backends`; each is mounted at `/{proxyPrefix}/{name}`.
+Set `proxyEnabled: true` to mount a same-origin proxy at `{proxyPrefix}` (default `/proxy`); it attaches the signed-in user's token server-side, so the browser never handles a credential and never makes a cross-origin call. Declare backends in `runtimeConfig.tlv2proxy.backends`; each is a base URL, mounted at `/{proxyPrefix}/{name}`.
 
 ```ts
 modules: [['@interline-io/tlv2-auth', { proxyEnabled: true }]]
@@ -103,21 +102,17 @@ modules: [['@interline-io/tlv2-auth', { proxyEnabled: true }]]
 ```ts
 tlv2proxy: {
   backends: {
-    // Public: injects a fallback apikey for token-less callers.
-    default:       { base: 'https://api.transit.land/api/v2', apikey: '' },
-    // Strict: no apikey; 401s unless the request has a valid user token.
-    stationEditor: { base: 'https://api.transit.land/api/v2', requireToken: true },
+    default:       { base: 'https://api.transit.land/api/v2' },
+    stationEditor: { base: 'https://saas.transit.land/api/v2' },
   },
 }
 ```
 
-Supply secrets via `NUXT_TLV2PROXY_BACKENDS_<NAME>_<FIELD>` (e.g. `NUXT_TLV2PROXY_BACKENDS_DEFAULT_APIKEY`). The `default` backend also serves `/auth/session` `me` enrichment and SSR data fetches.
+Set a base via `NUXT_TLV2PROXY_BACKENDS_<NAME>_BASE`. The `default` backend also serves the `/auth/session` `me` enrichment.
 
-**[PROXY.md](PROXY.md) documents the rest** — the credential rules (token-exclusive apikey, `requireToken`, `apikeyWithToken`), the security model (including the recommended anti-abuse gate pattern for apps that configure an anonymous apikey), and how to call the proxy from client code, MapLibre, and SSR.
+The proxy sends no key of its own. An app that sends one, so anonymous visitors can reach the API, attaches the key in a `tlv2proxy:request` hook, which is also where the app gates the key's use.
 
-### Migration
-
-During migration the legacy `NUXT_TLV2_GRAPHQL_APIKEY` (apikey) and `NUXT_TLV2_PROXY_BASE_<NAME>` (endpoints) env vars map into any backend you have **not** declared in `tlv2proxy.backends` — a declared backend is never merged into, so a deliberately keyless backend stays fail-closed even if a stale legacy apikey lingers. Move to `NUXT_TLV2PROXY_BACKENDS_<NAME>_*`; the legacy bridge is temporary.
+**[PROXY.md](PROXY.md) documents the rest** — the credential rules, the hook, the security model (including the recommended anti-abuse gate for an app's key), and how to call the proxy from client code, MapLibre, and SSR.
 
 ## Composables
 

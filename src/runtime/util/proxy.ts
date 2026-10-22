@@ -12,8 +12,8 @@ const pinnedFetch = globalThis.fetch
 export interface ProxyForward {
   // The upstream URL (see buildProxyTarget).
   target: string
-  // The headers to set upstream: the credential headers the proxy's policy chose
-  // (see buildProxyHeaders), and any a tlv2proxy:request hook added.
+  // The headers to set upstream: the caller's credential (see buildProxyHeaders),
+  // any apikey a tlv2proxy:request hook chose, and any headers a hook added.
   headers: Record<string, string>
   // A body to send in place of the request's own.
   body?: string
@@ -22,7 +22,7 @@ export interface ProxyForward {
 // Forwards a request to a backend with the given headers, stripping the caller's
 // own credentials (session cookie, caller-supplied apikey).
 export async function proxyHandler (event: H3Event, forward: ProxyForward) {
-  // Strip caller-supplied credentials so nothing rides past the injected policy:
+  // Strip caller-supplied credentials so only the ones the proxy chose go upstream:
   // delete them from the incoming request (Node lowercases header names, so one
   // lowercase delete covers all casings), and pin the session cookie empty on the
   // outgoing request. h3 applies our `headers` last in mergeHeaders and treats ''

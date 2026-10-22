@@ -95,8 +95,7 @@ describe('proxyHandler', () => {
       headers: { cookie: 'appSession=secret', authorization: 'Bearer forged', apikey: 'caller-key' }
     }))
     const [target, init] = fetchMock.mock.calls[0]!
-    // The route picks between a caller's apikey and the backend's; this sends
-    // its choice.
+    // The route picks the credentials; this sends its choice.
     expect(target).toBe('https://upstream.example.com/api/v2/query?limit=1')
     const sent = new Headers(init.headers)
     expect(sent.get('apikey')).toBe('backend-key')

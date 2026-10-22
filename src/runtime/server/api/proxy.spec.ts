@@ -34,10 +34,10 @@ function backends (extra: Record<string, any> = {}) {
   return {
     tlv2proxy: {
       backends: {
-        default: { base: 'https://api.example.com', apikey: 'shared-key' },
-        tiles: { base: 'https://api.example.com', apikey: 'shared-key', apikeyWithToken: true },
-        stationEditor: { base: 'https://saas.example.com', requireToken: true },
-        rest: { base: 'https://api.example.com/api/v2/', apikey: 'shared-key' }
+        default: { base: 'https://api.example.com' },
+        stationEditor: { base: 'https://saas.example.com' },
+        rest: { base: 'https://api.example.com/api/v2/' },
+        graphql: { base: 'https://api.example.com/api/v2/query' }
       }
     },
     ...extra
@@ -65,13 +65,13 @@ describe('proxy route', () => {
     expect(proxyHandler).not.toHaveBeenCalled()
   })
 
-  it('proxies an anonymous caller with the shared apikey when the backend allows it', async () => {
+  it('proxies an anonymous caller with no credential', async () => {
     const res = await fetchApp(new Request('https://www.example.com/proxy/default/query?limit=1'))
     expect(res.status).toBe(200)
-    expect(forwarded()).toEqual({ target: 'https://api.example.com/query?limit=1', headers: { apikey: 'shared-key' }, body: undefined })
+    expect(forwarded()).toEqual({ target: 'https://api.example.com/query?limit=1', headers: {}, body: undefined })
   })
 
-  it('prefers an apikey the caller supplies, by query or header, and keeps it off the path', async () => {
+  it('sends an apikey the caller supplies, by query or header, and keeps it off the path', async () => {
     await fetchApp(new Request('https://www.example.com/proxy/default/query?apikey=caller-key&limit=1'))
     expect(forwarded()?.headers).toEqual({ apikey: 'caller-key' })
     expect(forwarded()?.target).toBe('https://api.example.com/query?limit=1')
@@ -80,21 +80,22 @@ describe('proxy route', () => {
     expect(forwarded()?.headers).toEqual({ apikey: 'caller-key' })
   })
 
-  it('401s an anonymous caller on a requireToken backend', async () => {
-    const res = await fetchApp(new Request('https://www.example.com/proxy/stationEditor/query'))
-    expect(res.status).toBe(401)
-    expect((await res.json()).message).toContain('Authentication required')
-    expect(proxyHandler).not.toHaveBeenCalled()
+  it('proxies a logged-in caller with their token alone, dropping an apikey they sent', async () => {
+    session.value = loggedIn
+    const res = await fetchApp(new Request('https://www.example.com/proxy/stationEditor/query?apikey=caller-key'))
+    expect(res.status).toBe(200)
+    expect(forwarded()).toEqual({ target: 'https://saas.example.com/query', headers: { authorization: 'Bearer jwt' }, body: undefined })
   })
 
   it('401s an anonymous caller when the app sets requireLogin', async () => {
     config.value = backends({ public: { tlv2: { requireLogin: true } } })
     const res = await fetchApp(new Request('https://www.example.com/proxy/default/query'))
     expect(res.status).toBe(401)
+    expect((await res.json()).message).toContain('Authentication required')
     expect(proxyHandler).not.toHaveBeenCalled()
   })
 
-  it('401s a degraded session rather than falling back to the shared apikey', async () => {
+  it('401s a degraded session', async () => {
     session.value = degraded
     const res = await fetchApp(new Request('https://www.example.com/proxy/default/query'))
     expect(res.status).toBe(401)
@@ -103,28 +104,11 @@ describe('proxy route', () => {
   })
 
   it('answers a refusal as JSON even to a navigation', async () => {
+    config.value = backends({ public: { tlv2: { requireLogin: true } } })
     const res = await fetchApp(new Request('https://www.example.com/proxy/stationEditor/download', { headers: { accept: 'text/html' } }))
     expect(res.status).toBe(401)
     expect(res.headers.get('content-type')).toContain('application/json')
     expect(await res.json()).toEqual({ statusCode: 401, statusMessage: 'Unauthorized', message: '[tlv2-proxy] Authentication required' })
-  })
-
-  it('proxies a logged-in caller with their token and the backend policy', async () => {
-    session.value = loggedIn
-    const res = await fetchApp(new Request('https://www.example.com/proxy/tiles/tiles/routes/tiles/0/0/0.pbf'))
-    expect(res.status).toBe(200)
-    expect(forwarded()).toEqual({
-      target: 'https://api.example.com/tiles/routes/tiles/0/0/0.pbf',
-      headers: { authorization: 'Bearer jwt', apikey: 'shared-key' },
-      body: undefined
-    })
-  })
-
-  it('lets a logged-in caller through to a requireToken backend', async () => {
-    session.value = loggedIn
-    const res = await fetchApp(new Request('https://www.example.com/proxy/stationEditor/query'))
-    expect(res.status).toBe(200)
-    expect(forwarded()).toEqual({ target: 'https://saas.example.com/query', headers: { authorization: 'Bearer jwt' }, body: undefined })
   })
 
   it('honors a custom proxy prefix', async () => {
@@ -136,22 +120,35 @@ describe('proxy route', () => {
 })
 
 describe('the tlv2proxy:request hook', () => {
-  it('sees the backend, the path and whether the shared apikey rides', async () => {
-    const seen: Pick<ProxyRequest, 'backend' | 'path' | 'sharedApikey'>[] = []
-    hooks.value.hook('tlv2proxy:request', ({ backend, path, sharedApikey }) => {
-      seen.push({ backend, path, sharedApikey })
+  it('sees the backend, the path and the caller\'s credential', async () => {
+    const seen: Pick<ProxyRequest, 'backend' | 'path' | 'credential'>[] = []
+    hooks.value.hook('tlv2proxy:request', ({ backend, path, credential }) => {
+      seen.push({ backend, path, credential })
     })
     await fetchApp(new Request('https://www.example.com/proxy/default/query?limit=1'))
     await fetchApp(new Request('https://www.example.com/proxy/default/query?apikey=caller-key&limit=1'))
     session.value = loggedIn
-    await fetchApp(new Request('https://www.example.com/proxy/default/query'))
-    await fetchApp(new Request('https://www.example.com/proxy/tiles/tiles/0/0/0.pbf'))
+    await fetchApp(new Request('https://www.example.com/proxy/stationEditor/query'))
     expect(seen).toEqual([
-      { backend: 'default', path: '/query?limit=1', sharedApikey: true },
-      { backend: 'default', path: '/query?limit=1', sharedApikey: false },
-      { backend: 'default', path: '/query', sharedApikey: false },
-      { backend: 'tiles', path: '/tiles/0/0/0.pbf', sharedApikey: true }
+      { backend: 'default', path: '/query?limit=1', credential: 'none' },
+      { backend: 'default', path: '/query?limit=1', credential: 'apikey' },
+      { backend: 'stationEditor', path: '/query', credential: 'token' }
     ])
+  })
+
+  it('sends the apikey a hook sets alone or beside a token, but never over the caller\'s key', async () => {
+    hooks.value.hook('tlv2proxy:request', (request) => {
+      request.apikey = 'app-key'
+    })
+    await fetchApp(new Request('https://www.example.com/proxy/default/query'))
+    expect(forwarded()?.headers).toEqual({ apikey: 'app-key' })
+    vi.mocked(proxyHandler).mockClear()
+    await fetchApp(new Request('https://www.example.com/proxy/default/query', { headers: { apikey: 'caller-key' } }))
+    expect(forwarded()?.headers).toEqual({ apikey: 'caller-key' })
+    vi.mocked(proxyHandler).mockClear()
+    session.value = loggedIn
+    await fetchApp(new Request('https://www.example.com/proxy/default/query'))
+    expect(forwarded()?.headers).toEqual({ authorization: 'Bearer jwt', apikey: 'app-key' })
   })
 
   it('forwards the body a hook sets', async () => {
@@ -166,8 +163,9 @@ describe('the tlv2proxy:request hook', () => {
     hooks.value.hook('tlv2proxy:request', (request) => {
       request.headers['x-vetted'] = 'signed'
     })
+    session.value = loggedIn
     await fetchApp(new Request('https://www.example.com/proxy/default/query'))
-    expect(forwarded()?.headers).toEqual({ 'x-vetted': 'signed', 'apikey': 'shared-key' })
+    expect(forwarded()?.headers).toEqual({ 'x-vetted': 'signed', 'authorization': 'Bearer jwt' })
   })
 
   it('reports and fails a request whose hook sets a header only the proxy sets', async () => {
@@ -267,9 +265,10 @@ describe('the tlv2proxy:request hook', () => {
     expect(proxyHandler).not.toHaveBeenCalled()
   })
 
-  it('does not run for a request the proxy refuses itself', async () => {
+  it('does not run for a request the proxy refuses itself, so a degraded session never gets an app\'s key', async () => {
     const hook = vi.fn()
     hooks.value.hook('tlv2proxy:request', hook)
+    session.value = degraded
     await fetchApp(new Request('https://www.example.com/proxy/stationEditor/query'))
     expect(hook).not.toHaveBeenCalled()
   })
@@ -285,6 +284,22 @@ describe('raw request paths', () => {
     expect(res.status).toBe(200)
     expect(seen).toEqual(['/query'])
     expect(forwarded()?.target).toBe('https://api.example.com/api/v2/query')
+  })
+
+  it('forwards a bare backend to its base exactly, giving a hook an empty path', async () => {
+    const seen: string[] = []
+    hooks.value.hook('tlv2proxy:request', (request) => {
+      seen.push(request.path)
+    })
+    for (const path of ['/proxy/graphql', '/proxy/graphql?x=1']) {
+      const res = await plainApp({ method: 'POST', path, headers: {} })
+      expect(res.status, path).toBe(200)
+    }
+    expect(seen).toEqual(['', '?x=1'])
+    expect(vi.mocked(proxyHandler).mock.calls.map(c => c[1].target)).toEqual([
+      'https://api.example.com/api/v2/query',
+      'https://api.example.com/api/v2/query?x=1'
+    ])
   })
 
   it('logs and 404s a path outside the backend before any hook runs, keeping the caller\'s apikey out of the log', async () => {

@@ -16,9 +16,6 @@ declare module 'nuxt/schema' {
     }
     tlv2: {
       autoAppBaseUrl: boolean
-      // Legacy (migration): folded into tlv2proxy.backends.default.
-      graphqlApikey?: string
-      proxyBase?: Record<string, string>
     }
     tlv2proxy: {
       backends: Record<string, ProxyBackendConfig>

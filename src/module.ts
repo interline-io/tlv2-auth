@@ -118,17 +118,11 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolveRuntimeModule('server/middleware/auth0')
     })
 
-    // Private per-backend proxy config (base + apikey + policy, keyed by name).
-    // The `default` backend also serves /auth/session enrichment and SSR injection.
+    // The proxy backends, each a base URL keyed by name. The `default` backend
+    // also serves the /auth/session `me` enrichment.
     Object.assign(nuxt.options.runtimeConfig, defu(nuxt.options.runtimeConfig, {
       tlv2proxy: {
         backends: {},
-      },
-      // Legacy migration bridge (see resolveProxyBackends); only `default` binds
-      // via env, so consumers with more backends declare them in tlv2proxy.backends.
-      tlv2: {
-        graphqlApikey: '',
-        proxyBase: { default: '' },
       },
     }))
 
@@ -175,10 +169,10 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolveRuntimeModule('server/api/auth/logout-local.get')
     })
 
-    // Mount the proxy only when explicitly enabled — it injects server-side
-    // credentials, so legacy env vars alone must not expose it. Anti-abuse gating
-    // is the consuming app's job, through the tlv2proxy:request hook (see
-    // PROXY.md); unconfigured backends 404.
+    // Mount the proxy only when explicitly enabled, since it sends the user's
+    // server-side token. An app's own key, and any gate on its use, are the app's
+    // job, through the tlv2proxy:request hook (see PROXY.md); unconfigured
+    // backends 404.
     if (options.proxyEnabled) {
       // Log the resolved proxy backends once at server startup (no secrets).
       addServerPlugin(resolveRuntimeModule('server/plugins/log-proxy-backends'))
@@ -189,7 +183,7 @@ export default defineNuxtModule<ModuleOptions>({
       // Types the tlv2proxy:request hook in the app's server code.
       addTypeTemplate({
         filename: 'types/tlv2-auth-proxy.d.ts',
-        getContents: () => `export type { ProxyRequest } from '${resolveRuntimeModule('server/proxyRequest')}'\n`
+        getContents: () => `export type { ProxyRefusal, ProxyRequest } from '${resolveRuntimeModule('server/proxyRequest')}'\n`
       }, { nitro: true })
     }
   }
