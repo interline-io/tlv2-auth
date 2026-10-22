@@ -38,7 +38,7 @@
         Fired in the browser on demand (<code>network-only</code>, never SSR), through the
         same-origin proxy (<strong>{{ backend }}</strong> backend) with browser cookies.
         <strong>default</strong> sends the playground's key for anonymous callers;
-        <strong>stationEditor</strong> carries no key, so it errors without a valid token.
+        <strong>stationEditor</strong> sets requireToken and errors without a valid token.
       </p>
       <div style="margin-top: 0.5rem;">
         <button :disabled="clientLoading" @click="runClientQuery">
@@ -68,8 +68,8 @@ const route = useRoute()
 const backend = typeof route.query.backend === 'string' && route.query.backend ? route.query.backend : 'default'
 
 // SSR half: useQuery prefetches during server render, then hydrates from the
-// payload cache. A failed backend response (e.g. a 401 when unauthenticated on a
-// backend without a key) is kept from 500-ing the render by the SSR error link in the
+// payload cache. A failed backend response (e.g. a requireToken backend 401 when
+// unauthenticated) is kept from 500-ing the render by the SSR error link in the
 // apollo plugin — no per-query handling needed.
 const { result, error, loading: ssrLoading } = useQuery(QUERY, null, { clientId: backend })
 const ssrResult = computed(() => result.value ? JSON.stringify(result.value, null, 2) : '(no data)')

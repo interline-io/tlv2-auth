@@ -5,8 +5,8 @@ import createUploadLink from 'apollo-upload-client/createUploadLink.mjs'
 import { ApolloClients, provideApolloClients } from '@vue/apollo-composable'
 import { defineNuxtPlugin, useApiEndpoint, useProxySsrFetch } from '#imports'
 
-// SSR only: a failed backend response (e.g. a 401 for an unauthenticated request
-// on a backend without a key) reaches Apollo as a network error, which rejects
+// SSR only: a failed backend response (e.g. a requireToken backend 401 for an
+// unauthenticated request) reaches Apollo as a network error, which rejects
 // useQuery's server-prefetch and 500s the whole render. Re-emit it as a
 // result-with-errors so — paired with errorPolicy 'all' below — the query
 // resolves and the error surfaces via useQuery's `error` instead of crashing the

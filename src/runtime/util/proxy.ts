@@ -17,6 +17,9 @@ export interface ProxyForward {
   headers: Record<string, string>
   // A body to send in place of the request's own.
   body?: string
+  // Called with the upstream response after its status and headers are copied
+  // onto the reply, before the body streams.
+  onResponse?: (response: Response) => void
 }
 
 // Forwards a request to a backend with the given headers, stripping the caller's
@@ -53,7 +56,10 @@ export async function proxyHandler (event: H3Event, forward: ProxyForward) {
     // h3 spreads fetchOptions over the body it read, so a replacement wins.
     fetchOptions: forward.body === undefined ? { redirect: 'manual' } : { redirect: 'manual', body: forward.body },
     headers,
-    onResponse: streamBody
+    onResponse: (event, response) => {
+      forward.onResponse?.(response)
+      return streamBody(event, response)
+    }
   })
 }
 

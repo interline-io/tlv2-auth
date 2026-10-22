@@ -23,7 +23,7 @@ export default defineNuxtConfig({
     tlv2proxy: {
       backends: {
         default: { base: 'https://api.transit.land/api/v2' },
-        stationEditor: { base: 'https://saas.transit.land/api/v2' },
+        stationEditor: { base: 'https://saas.transit.land/api/v2', requireToken: true },
       },
     },
     // The playground's own key, which server/plugins/proxy-apikey.ts sends for

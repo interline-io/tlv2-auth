@@ -49,7 +49,8 @@ export interface ProxyTarget {
 }
 
 // The base joined to the stripped request path, resolved once, dot segments
-// included. A trailing slash on the base is ignored, and so is any query on it.
+// included. A trailing slash on the base is ignored, as is any query string on
+// the base.
 //
 // Undefined when the result escapes the base's origin (SSRF) or its path
 // (traversal), including into a sibling that shares the base's prefix: /api/v2x

@@ -4,7 +4,7 @@ import { useNitroApp } from 'nitropack/runtime'
 import { useRuntimeConfig } from '#imports'
 import { proxyHandler } from '../../util/proxy'
 import { CREDENTIAL_HEADERS, buildProxyHeaders, buildProxyTarget, parseProxyRoute, stripApikeyParam } from '../../util/proxy-route'
-import type { ProxyBackendConfig } from '../../util/backends'
+import { proxyBackends } from '../../util/backends'
 import { DEFAULT_PROXY_PREFIX } from '../../util/defaults'
 import { traceEnabled, trace } from '../../util/log'
 import { useAuth0Session } from '../useSession'
@@ -16,20 +16,19 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
   const prefix = config.public?.tlv2proxy?.prefix || DEFAULT_PROXY_PREFIX
   const route = parseProxyRoute(event.path || '', prefix)
-  // Widened from the app's own declaration, which names only its backends.
-  const backends: Record<string, ProxyBackendConfig> = config.tlv2proxy?.backends ?? {}
-  const backend = route ? backends[route.name] : undefined
+  const backend = route ? proxyBackends(config)[route.name] : undefined
   if (!route || !backend?.base) {
     return refuse(event, { statusCode: 404, statusMessage: 'Not Found', message: '[tlv2-proxy] Unknown proxy backend' })
   }
 
   const auth = await useAuth0Session(event)
 
-  // A degraded session (logged in, no usable token) 401s here, before any hook
-  // can send an app's key, so a known user re-authenticates rather than going out
-  // under a shared identity. So does an anonymous caller of an app that requires login.
+  // Without a usable token, a request 401s here, before any hook can send an
+  // app's key, on a requireToken backend, in an app that requires login, and
+  // from a degraded session (logged in, no usable token), so a known user
+  // re-authenticates rather than going out under a shared identity.
   const requireLogin = config.public?.tlv2?.requireLogin
-  if (!auth.accessToken && (auth.loggedIn || requireLogin)) {
+  if (!auth.accessToken && (backend.requireToken || auth.loggedIn || requireLogin)) {
     return refuse(event, {
       statusCode: 401,
       statusMessage: 'Unauthorized',
@@ -90,11 +89,16 @@ export default defineEventHandler(async (event) => {
     return hookBug(event, `set a body on a ${event.method} request`)
   }
 
-  // A key the caller sent goes upstream in place of the app's.
-  if (request.apikey && !headers.apikey) {
-    headers.apikey = request.apikey
+  // A key the caller supplied goes wherever the app's would, even beside a token.
+  if (request.apikey) {
+    headers.apikey = requestApikey || request.apikey
   }
-  return proxyHandler(event, { target: upstream.target, headers: { ...request.headers, ...headers }, body: request.body })
+  return proxyHandler(event, {
+    target: upstream.target,
+    headers: { ...request.headers, ...headers },
+    body: request.body,
+    onResponse: request.onResponse
+  })
 })
 
 // Headers only the proxy sets upstream: the credentials, and the framing fetch

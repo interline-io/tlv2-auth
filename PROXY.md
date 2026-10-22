@@ -36,11 +36,17 @@ runtimeConfig: {
   tlv2proxy: {
     backends: {
       default:       { base: 'https://api.transit.land/api/v2' },
-      stationEditor: { base: 'https://saas.transit.land/api/v2' },
+      // 401s at the proxy unless the request carries a signed-in user's token.
+      stationEditor: { base: 'https://saas.transit.land/api/v2', requireToken: true },
     },
   },
 }
 ```
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `base` | `string` | Upstream base URL. Required. |
+| `requireToken` | `boolean?` | 401 unless the request carries a signed-in user's token, before any hook runs. For a backend no anonymous request should reach: it saves the upstream round trip, and a hook that misconfigures the app's key can't widen what reaches the backend. |
 
 Set a base from the environment with `NUXT_TLV2PROXY_BACKENDS_<NAME>_BASE`.
 Nitro only overrides keys that already exist in the config object, so a backend
@@ -50,19 +56,24 @@ maps to SNAKE_CASE in the variable: `stationEditor` → `..._STATION_EDITOR_...`
 Prefer single-word names to avoid the ambiguity.
 
 The `default` backend also serves the `/auth/session` `me` enrichment (roles),
-which it fetches from `{base}/query` with the user's token alone.
+which it fetches from `{base}/query` with the user's token alone. That lookup
+is not a proxied request and runs no `tlv2proxy:request` hook, so the lookup
+never carries an app's key.
 
 ## Credentials
 
 The proxy sends the caller's own credential, and no credential of its own:
 
-- A signed-in user's token goes upstream as `Authorization: Bearer …`. A token
-  is exclusive: an apikey the caller sent is dropped.
+- A signed-in user's token goes upstream as `Authorization: Bearer …`. An apikey
+  the caller sent with a token goes too only where a hook attaches a key, in
+  place of the hook's key.
 - Without a token, an apikey the caller supplied, by `?apikey=` or an `apikey`
   header, goes upstream as the `apikey` header. The parameter never stays on the
   forwarded URL.
 - Otherwise the request goes upstream with no credential, unless a hook attaches
   the app's key (below).
+- A `requireToken` backend 401s a request without a user's token, even one with
+  an apikey of its own, before any hook runs.
 - A **degraded** session (logged in, but the token expired or refresh failed)
   401s on every backend before any hook runs, so a known user re-authenticates
   rather than going out under an app's shared identity.
@@ -82,7 +93,7 @@ user's session through the proxy.
 An app that attaches a key of its own lends that key's identity to anyone who
 can reach the proxy. Whether and how to add friction there is the app's
 decision, since only the app knows which requests should carry its key and what
-abuse costs it. Attach the key last, after the hook's own checks, so a request
+abuse would cost the app. Attach the key last, after the hook's own checks, so a request
 that misses a check goes out without the key.
 
 The pattern we recommend: on document loads, issue a short-lived signed token
@@ -132,9 +143,10 @@ The hook receives a `ProxyRequest`:
 | `backend` | `string` | The backend's name, the path segment after the prefix. Read-only. |
 | `path` | `string` | The path and query after the backend segment, such as `/query`, exactly as forwarded: dot segments are resolved, and a caller-supplied `apikey` parameter is removed. A bare `/{proxyPrefix}/{name}` goes to the backend's base itself, less any trailing slash, and its `path` is empty, or `/` when the base is a host root. Read-only. |
 | `credential` | `'token' \| 'apikey' \| 'none'` | The caller's own credential, which the proxy sends upstream: the signed-in user's token, an apikey the caller supplied, or none. Read-only. |
-| `apikey` | `string?` | Set to send this key upstream, such as the app's own. The proxy sends it alongside a user's token or alone, but never over a key the caller supplied. |
+| `apikey` | `string?` | Set to send this key upstream, such as the app's own. The proxy sends it alongside a user's token or alone; when the caller supplied a key, the caller's key goes in its place. |
 | `body` | `string?` | Set to send this upstream in place of the request's own body. The proxy sends the new body's length. Not allowed on a GET or HEAD. |
 | `headers` | `Record<string, string>` | Headers to set on the request sent upstream, replacing any the caller sent under the same names. Starts empty. |
+| `onResponse` | `(response: Response) => void` | Set to see the upstream response once its status and headers are on the reply, before the body streams. A header the callback sets on `event` reaches the client, so a header can depend on the upstream's answer, such as caching only a successful response. Not called for a refused request. |
 | `refusal` | `ProxyRefusal?` | The first refusal a hook made, if any. Read-only. |
 | `refuse(refusal)` | method | Refuses the request with `{ statusCode, statusMessage?, message }`, where `statusCode` is 400 through 599. The proxy answers the refusal as JSON and forwards nothing. Only the first refusal counts. |
 

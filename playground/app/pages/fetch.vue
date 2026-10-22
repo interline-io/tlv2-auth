@@ -21,7 +21,7 @@
       <p style="color: #666; font-size: 0.9rem;">
         Sends a GraphQL query through the proxy with plain <code>fetch()</code>.
         <strong>default</strong> sends the playground's key for anonymous callers (works
-        logged-out); <strong>stationEditor</strong> carries no key, so it returns 401 without a
+        logged-out); <strong>stationEditor</strong> sets requireToken, so it returns 401 without a
         valid token.
       </p>
       <div style="margin-top: 0.5rem;">

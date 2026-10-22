@@ -6,7 +6,7 @@ Nuxt 4 module providing authentication and API proxying for Transitland v2 appli
 
 - Server-side Auth0 sessions (always bundled; gracefully disabled at runtime when credentials are absent)
 - Same-origin API proxy that sends the signed-in user's token server-side — the module mounts the route itself
-- A `tlv2proxy:request` hook for the app's own proxy policy: attaching the app's own apikey, refusing requests, such as an anti-abuse gate on that key, replacing request bodies, and adding headers to the upstream request
+- A `tlv2proxy:request` hook for the app's own proxy policy: attaching the app's own apikey, refusing requests, such as an anti-abuse gate on that key, replacing request bodies, adding headers to the upstream request, and setting response headers from the upstream's answer
 - Transparent for app code: plain `fetch`/`$fetch` against proxy paths work on both client and SSR (in-process loopback; only the proxy talks to the upstream)
 - Session enrichment with roles from a GraphQL `me` endpoint
 - Composables: `useUser`, `useLogin`, `useLogout`, `useApiEndpoint`, `useProxySsrFetch`
@@ -79,7 +79,7 @@ modules: [['@interline-io/tlv2-auth', { autoAppBaseUrl: true }]]
 | `proxyPrefix` | `string` | `'/proxy'` | URL prefix the module mounts the proxy under, and that `useApiEndpoint` builds requests against |
 | `autoAppBaseUrl` | `boolean` | `false` | Derive auth0 `appBaseUrl` from request `Host` header (see below) |
 
-`requireLogin` is the app-wide login gate: it redirects unauthenticated users client-side **and** fail-closes the proxy server-side (anonymous requests 401 on every backend).
+`requireLogin` is the app-wide login gate: it redirects unauthenticated users client-side **and** fail-closes the proxy server-side (anonymous requests 401 on every backend). To fail-close only a specific privileged backend, set its `requireToken` instead (see [PROXY.md](PROXY.md)).
 
 ### `autoAppBaseUrl`
 
@@ -103,14 +103,15 @@ modules: [['@interline-io/tlv2-auth', { proxyEnabled: true }]]
 tlv2proxy: {
   backends: {
     default:       { base: 'https://api.transit.land/api/v2' },
-    stationEditor: { base: 'https://saas.transit.land/api/v2' },
+    // 401s at the proxy unless the request has a signed-in user's token.
+    stationEditor: { base: 'https://saas.transit.land/api/v2', requireToken: true },
   },
 }
 ```
 
 Set a base via `NUXT_TLV2PROXY_BACKENDS_<NAME>_BASE`. The `default` backend also serves the `/auth/session` `me` enrichment.
 
-The proxy sends no key of its own. An app that sends one, so anonymous visitors can reach the API, attaches the key in a `tlv2proxy:request` hook, which is also where the app gates the key's use.
+The proxy sends no key of its own. An app that sends one, so anonymous visitors can reach the API, attaches the key in a `tlv2proxy:request` hook, which is also where the app gates the key's use. The `me` lookup runs no hook and never carries an app's key.
 
 **[PROXY.md](PROXY.md) documents the rest** — the credential rules, the hook, the security model (including the recommended anti-abuse gate for an app's key), and how to call the proxy from client code, MapLibre, and SSR.
 

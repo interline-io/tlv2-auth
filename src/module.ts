@@ -118,8 +118,8 @@ export default defineNuxtModule<ModuleOptions>({
       handler: resolveRuntimeModule('server/middleware/auth0')
     })
 
-    // The proxy backends, each a base URL keyed by name. The `default` backend
-    // also serves the /auth/session `me` enrichment.
+    // The proxy backends, each a base URL and an optional requireToken, keyed by
+    // name. The `default` backend also serves the /auth/session `me` enrichment.
     Object.assign(nuxt.options.runtimeConfig, defu(nuxt.options.runtimeConfig, {
       tlv2proxy: {
         backends: {},

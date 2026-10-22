@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { enrichUserClaims } from '../util/enrich'
-import type { ProxyConfig } from '../util/backends'
+import { proxyBackends, type ProxyConfig } from '../util/backends'
 import { buildProxyHeaders } from '../util/proxy-route'
 import { useAuth0Session } from './useSession'
 import { traceEnabled, trace, traceUserClaims } from '../util/log'
@@ -66,13 +66,13 @@ export async function getSessionUser (
   }
   traceUserClaims('getSessionUser — user claims:', auth.user)
 
-  // Degraded (logged in, no token): skip enrichment and flag it, since `me`
-  // needs the user's token.
+  // Degraded (logged in, no token): skip enrichment and mark the session
+  // degraded, since `me` needs the user's token.
   if (!auth.accessToken) {
     return { ...auth.user, tlv2_degraded: true }
   }
 
-  const identity = config.tlv2proxy?.backends?.default
+  const identity = proxyBackends(config).default
   if (!identity?.base) {
     if (traceEnabled) {
       trace('getSessionUser — no default backend configured, returning user claims without enrichment')

@@ -35,7 +35,7 @@ function backends (extra: Record<string, any> = {}) {
     tlv2proxy: {
       backends: {
         default: { base: 'https://api.example.com' },
-        stationEditor: { base: 'https://saas.example.com' },
+        stationEditor: { base: 'https://saas.example.com', requireToken: true },
         rest: { base: 'https://api.example.com/api/v2/' },
         graphql: { base: 'https://api.example.com/api/v2/query' }
       }
@@ -87,6 +87,15 @@ describe('proxy route', () => {
     expect(forwarded()).toEqual({ target: 'https://saas.example.com/query', headers: { authorization: 'Bearer jwt' }, body: undefined })
   })
 
+  it('401s a caller without a token on a requireToken backend, even with an apikey of its own', async () => {
+    for (const init of [{}, { headers: { apikey: 'caller-key' } }]) {
+      const res = await fetchApp(new Request('https://www.example.com/proxy/stationEditor/query', init))
+      expect(res.status).toBe(401)
+      expect((await res.json()).message).toContain('Authentication required')
+    }
+    expect(proxyHandler).not.toHaveBeenCalled()
+  })
+
   it('401s an anonymous caller when the app sets requireLogin', async () => {
     config.value = backends({ public: { tlv2: { requireLogin: true } } })
     const res = await fetchApp(new Request('https://www.example.com/proxy/default/query'))
@@ -104,7 +113,6 @@ describe('proxy route', () => {
   })
 
   it('answers a refusal as JSON even to a navigation', async () => {
-    config.value = backends({ public: { tlv2: { requireLogin: true } } })
     const res = await fetchApp(new Request('https://www.example.com/proxy/stationEditor/download', { headers: { accept: 'text/html' } }))
     expect(res.status).toBe(401)
     expect(res.headers.get('content-type')).toContain('application/json')
@@ -136,19 +144,29 @@ describe('the tlv2proxy:request hook', () => {
     ])
   })
 
-  it('sends the apikey a hook sets alone or beside a token, but never over the caller\'s key', async () => {
+  it('sends the apikey a hook sets alone or beside a token, with a key the caller supplied in its place', async () => {
     hooks.value.hook('tlv2proxy:request', (request) => {
       request.apikey = 'app-key'
     })
-    await fetchApp(new Request('https://www.example.com/proxy/default/query'))
-    expect(forwarded()?.headers).toEqual({ apikey: 'app-key' })
-    vi.mocked(proxyHandler).mockClear()
-    await fetchApp(new Request('https://www.example.com/proxy/default/query', { headers: { apikey: 'caller-key' } }))
-    expect(forwarded()?.headers).toEqual({ apikey: 'caller-key' })
-    vi.mocked(proxyHandler).mockClear()
+    const sent = async (init: RequestInit = {}) => {
+      vi.mocked(proxyHandler).mockClear()
+      await fetchApp(new Request('https://www.example.com/proxy/default/query', init))
+      return forwarded()?.headers
+    }
+    expect(await sent()).toEqual({ apikey: 'app-key' })
+    expect(await sent({ headers: { apikey: 'caller-key' } })).toEqual({ apikey: 'caller-key' })
     session.value = loggedIn
+    expect(await sent()).toEqual({ authorization: 'Bearer jwt', apikey: 'app-key' })
+    expect(await sent({ headers: { apikey: 'caller-key' } })).toEqual({ authorization: 'Bearer jwt', apikey: 'caller-key' })
+  })
+
+  it('passes the onResponse a hook sets to the forwarder', async () => {
+    const onResponse = vi.fn()
+    hooks.value.hook('tlv2proxy:request', (request) => {
+      request.onResponse = onResponse
+    })
     await fetchApp(new Request('https://www.example.com/proxy/default/query'))
-    expect(forwarded()?.headers).toEqual({ authorization: 'Bearer jwt', apikey: 'app-key' })
+    expect(forwarded()?.onResponse).toBe(onResponse)
   })
 
   it('forwards the body a hook sets', async () => {
