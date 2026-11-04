@@ -73,10 +73,11 @@ export async function getSessionUser (
   }
 
   const identity = proxyBackends(config).default
+  // A signed-in user with a token but nowhere to look up `me` is a deployment
+  // misconfiguration, not a per-user condition: every user loses their roles.
+  // Warn outside trace mode so it shows in production logs.
   if (!identity?.base) {
-    if (traceEnabled) {
-      trace('getSessionUser — no default backend configured, returning user claims without enrichment')
-    }
+    console.warn('[tlv2-auth] session enrich: tlv2proxy.backends.default has no base; skipping `me`, so the user has no roles')
     return auth.user
   }
 

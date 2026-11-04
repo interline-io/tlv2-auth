@@ -60,5 +60,13 @@ describe('getSessionUser', () => {
   it('returns plain claims when no default backend is configured', async () => {
     expect(await getSessionUser(withToken('jwt'), {})).toEqual({ sub: 'u1', email: 'a@example.com' })
     expect(fetchMock).not.toHaveBeenCalled()
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('tlv2proxy.backends.default has no base'))
+  })
+
+  it('warns when the default backend is declared with an empty base', async () => {
+    const declaredEmpty = { tlv2proxy: { backends: { default: { base: '' } } } }
+    expect(await getSessionUser(withToken('jwt'), declaredEmpty)).toEqual({ sub: 'u1', email: 'a@example.com' })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('tlv2proxy.backends.default has no base'))
   })
 })
