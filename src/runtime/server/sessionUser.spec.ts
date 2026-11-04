@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { H3Event } from 'h3'
-import { getSessionUser } from './sessionUser'
+import type * as SessionUser from './sessionUser'
+
+// Re-imported per test: the module keeps a once-per-instance warning flag.
+let getSessionUser: typeof SessionUser.getSessionUser
 
 function eventWith (auth0Session?: Record<string, any>) {
   return { context: { auth0Session } } as unknown as H3Event
@@ -19,7 +22,9 @@ function config () {
 
 describe('getSessionUser', () => {
   let fetchMock: ReturnType<typeof vi.fn>
-  beforeEach(() => {
+  beforeEach(async () => {
+    vi.resetModules()
+    getSessionUser = (await import('./sessionUser')).getSessionUser
     fetchMock = vi.fn().mockResolvedValue(Response.json({ data: { me } }))
     vi.stubGlobal('fetch', fetchMock)
     vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -47,6 +52,7 @@ describe('getSessionUser', () => {
     expect(url).toBe('https://api.example.com/query')
     expect(init.headers.authorization).toBe('Bearer jwt')
     expect(init.headers.apikey).toBeUndefined()
+    expect(console.warn).not.toHaveBeenCalled()
   })
 
   it('falls back to plain claims when me fails', async () => {
@@ -57,16 +63,14 @@ describe('getSessionUser', () => {
     expect(await getSessionUser(withToken('jwt'), config())).toEqual({ sub: 'u1', email: 'a@example.com' })
   })
 
-  it('returns plain claims when no default backend is configured', async () => {
-    expect(await getSessionUser(withToken('jwt'), {})).toEqual({ sub: 'u1', email: 'a@example.com' })
+  it.each([
+    ['absent', {}],
+    ['declared with an empty base', { tlv2proxy: { backends: { default: { base: '' } } } }],
+  ])('returns plain claims and warns once when the default backend is %s', async (_, noBase) => {
+    expect(await getSessionUser(withToken('jwt'), noBase)).toEqual({ sub: 'u1', email: 'a@example.com' })
+    expect(await getSessionUser(withToken('jwt'), noBase)).toEqual({ sub: 'u1', email: 'a@example.com' })
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('tlv2proxy.backends.default has no base'))
-  })
-
-  it('warns when the default backend is declared with an empty base', async () => {
-    const declaredEmpty = { tlv2proxy: { backends: { default: { base: '' } } } }
-    expect(await getSessionUser(withToken('jwt'), declaredEmpty)).toEqual({ sub: 'u1', email: 'a@example.com' })
-    expect(fetchMock).not.toHaveBeenCalled()
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('tlv2proxy.backends.default has no base'))
+    expect(console.warn).toHaveBeenCalledTimes(1)
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('NUXT_TLV2PROXY_BACKENDS_DEFAULT_BASE'))
   })
 })

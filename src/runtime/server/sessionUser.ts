@@ -12,6 +12,10 @@ import { traceEnabled, trace, traceUserClaims } from '../util/log'
 // /auth/session response; on timeout the query returns null (enrichment skipped).
 const ENRICH_TIMEOUT_MS = 1000
 
+// Set once the missing-default-backend warning has been logged, so a static
+// config problem logs once per server instance rather than on every lookup.
+let warnedNoDefaultBase = false
+
 // Fetch the GraphQL `me` record. Returns null on unreachable/timeout/error —
 // enrichment is best-effort.
 async function fetchMeData (proxyBase: string, headers: Record<string, string>) {
@@ -77,7 +81,10 @@ export async function getSessionUser (
   // misconfiguration, not a per-user condition: every user loses their roles.
   // Warn outside trace mode so it shows in production logs.
   if (!identity?.base) {
-    console.warn('[tlv2-auth] session enrich: tlv2proxy.backends.default has no base; skipping `me`, so the user has no roles')
+    if (!warnedNoDefaultBase) {
+      warnedNoDefaultBase = true
+      console.warn('[tlv2-auth] session enrich: tlv2proxy.backends.default has no base (set NUXT_TLV2PROXY_BACKENDS_DEFAULT_BASE); skipping `me`, so signed-in users have no roles')
+    }
     return auth.user
   }
 
